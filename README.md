@@ -1,6 +1,6 @@
 # README #
 
-This README would normally document whatever steps are necessary to get your application up and running.
+https://bitbucket.org/lclsbioin/xspect/downloads/Spectroscopy_Code.pptx
 
 ### What is this repository for? ###
 
