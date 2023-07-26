@@ -21,6 +21,7 @@ class experiment:
         self.get_experiment_directory()
     def get_experiment_directory(self):    
         experiment_directories = [
+        '/sdf/data/lcls/ds/%s/%s/hdf5/smalldata',
         '/reg/data/drpsrcf/%s/%s/scratch/hdf5/smalldata',
         '/cds/data/drpsrcf/%s/%s/scratch/hdf5/smalldata',
         '/reg/d/psdm/%s/%s/hdf5/smalldata'

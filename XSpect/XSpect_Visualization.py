@@ -110,7 +110,7 @@ class XASVisualization(SpectroscopyVisualization):
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
         vmin, vmax = np.percentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=-0.1, vmax=0.1, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=-0.5, vmax=0.5, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
         plt.colorbar()
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')

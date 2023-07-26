@@ -143,6 +143,7 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis.separate_shots(f,'ipm4',['xray','laser'])
         analysis.union_shots(f,'ccm',['simultaneous','laser'])
         analysis.separate_shots(f,'ccm',['xray','laser'])
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         analysis.time_binning(f,self.time_bins)
         analysis.ccm_binning(f,'ccm_bins','ccm')
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
