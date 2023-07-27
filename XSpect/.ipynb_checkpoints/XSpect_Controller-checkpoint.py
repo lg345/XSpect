@@ -99,7 +99,7 @@ class XESBatchAnalysis(BatchAnalysis):
         analysis=XESAnalysis()
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
-        analysis.patch_pixels_1d(f,'epix_ROI_1')
+        #analysis.patch_pixels_1d(f,'epix_ROI_1')
         f.close_h5()
         analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],self.crystal_d_space,self.crystal_radius)
         for fil in self.filters:

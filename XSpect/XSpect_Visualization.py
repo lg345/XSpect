@@ -35,6 +35,8 @@ class SpectroscopyVisualization:
         
 class XESVisualization(SpectroscopyVisualization):
     def __init__(self):
+        vmin=-0.1
+        vmax=0.1
         pass
     def plot_1d_XES(self, run, detector_key, target_key, low=-np.inf,high=np.inf,axis=0):
         target=getattr(run,target_key)
@@ -69,9 +71,9 @@ class XESVisualization(SpectroscopyVisualization):
         laser_off_spectrum=xes_analysis.summed_laser_off_normalized
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
         energy=xes_analysis.analyzed_runs[0].kbeta_energy
-        vmin, vmax = np.percentile(difference_spectrum, [0,99])
+        #vmin, vmax = np.percentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=-0.005, vmax=0.005, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,np.min(energy),np.max(energy)])
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,np.min(energy),np.max(energy)])
         plt.colorbar()
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')
