@@ -51,7 +51,7 @@ class BatchAnalysis:
         self.filters.append({'FilterType':shot_type,'FilterKey':filter_key,'FilterThreshold':threshold})
         
     def set_key_aliases(self,keys=['tt/ttCorr','epics/lxt_ttc', 'enc/lasDelay' , 'ipm4/sum','tt/AMPL','epix_2/ROI_0_area'], 
-names=['time_tool_correction','lxt_ttc'  ,'encoder','ipm4', 'time_tool_ampl','epix']):
+names=['time_tool_correction','lxt_ttc'  ,'encoder','ipm', 'time_tool_ampl','epix']):
         self.keys=keys
         self.friendly_names=names
     
@@ -139,8 +139,8 @@ class XASBatchAnalysis(BatchAnalysis):
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
-        analysis.union_shots(f,'ipm4',['simultaneous','laser'])
-        analysis.separate_shots(f,'ipm4',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
         analysis.union_shots(f,'ccm',['simultaneous','laser'])
         analysis.separate_shots(f,'ccm',['xray','laser'])
         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
@@ -152,6 +152,6 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
         analysis.reduce_detector_ccm_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
         analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_ccm_temporal(f,'ipm4_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm_temporal(f,'ipm4_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
         return f

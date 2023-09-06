@@ -101,7 +101,7 @@ class SpectroscopyAnalysis:
     def __init__(self):
         pass
     
-    def filter_shots(self, run,shot_mask_key, filter_key='ipm4', threshold=1.0E4):
+    def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         #filter_mode a is all shots. l is laser+x-ray shots.
         shot_mask=getattr(run,shot_mask_key)
         count_before=np.sum(shot_mask)
@@ -112,7 +112,7 @@ class SpectroscopyAnalysis:
         setattr(run,shot_mask_key,filtered_shot_mask)
         run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold,count_before-count_after))
     
-    def filter_nan(self, run,shot_mask_key, filter_key='ipm4'):
+    def filter_nan(self, run,shot_mask_key, filter_key='ipm'):
         #filter_mode a is all shots. l is laser+x-ray shots.
         shot_mask=getattr(run,shot_mask_key)
         count_before=np.sum(shot_mask)
