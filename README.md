@@ -17,7 +17,8 @@ Post processing module notes:
 
 *In progress*
 
-## Post Processing (Draft by Ryan Ribson)
+## Post Processing 
+Draft by Ryan Ribson
 
 ### FXN: irfconv
 - Performs numerical convolution between heaviside exponential function and gaussian IRF (gaussian area normalized to 1)
