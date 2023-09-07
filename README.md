@@ -80,13 +80,11 @@ plt.show()
     - amp = amplitudes for scaling
 - Outputs:
     - The function gives a 2D array back: the first dimension will be that of the provided x grid (time), the second dimension will be # of k values given; i.e. a matrix where each column is a convolved monoexponential function with rate constant k[i]
-- Analytical expression:
-$$ 
-I(t)\  = \ \frac{A}{2} \cdot exp\lbrack - k(t - t_{0})\rbrack \cdot exp\lbrack 0.5 \ast {(k\sigma)}^{2}\rbrack \cdot (1 + erf\lbrack\frac{t - t_{0} - k\sigma^{2}}{\sigma}\rbrack)
-$$
+- Analytical expression:   
+![equation](https://latex.codecogs.com/svg.image?$$I(t)=\frac{A}{2}\cdot&space;exp\lbrack-k(t-t_{0})\rbrack\cdot&space;exp\lbrack&space;0.5\ast{(k\sigma)}^{2}\rbrack\cdot(1&plus;erf\lbrack\frac{t-t_{0}-k\sigma^{2}}{\sigma}\rbrack))  
     - A = amplitude
     - k = exponential rate constant
-    - t~0~ = "time zero"
+    - t~<sub>0</sub> = "time zero"
     - 𝝈 = gaussian IRF standard deviation/width parameter
     - erf is the error function
 - I have the code return the heaviside exponential function if 𝝈 = 0 is provided with time zero shifted to value given by "center"
