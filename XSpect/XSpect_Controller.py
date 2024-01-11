@@ -90,6 +90,7 @@ class XESBatchAnalysis(BatchAnalysis):
         self.filters=[]
         self.key_epix=['epix_2/ROI_0_area']
         self.friendly_name_epix=['epix']
+        self.rotation=0.0
     
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
@@ -115,6 +116,33 @@ class XESBatchAnalysis(BatchAnalysis):
         analysis.normalize_xes(f,'epix_ROI_1_simultaneous_laser_time_binned')
         analysis.normalize_xes(f,'epix_ROI_1_xray_not_laser_time_binned')
         return f
+    
+class XESBatchAnalysisRotation(XESBatchAnalysis):
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
+        analysis=XESAnalysis()
+        analysis.pixels_to_patch=self.pixels_to_patch
+#        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
+        #f.close_h5()
+        #analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],self.crystal_d_space,self.crystal_radius)
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.bins)
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        
+        f.close_h5()
+        return f
+
+        
     
 
 class XASBatchAnalysis(BatchAnalysis):

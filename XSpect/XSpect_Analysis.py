@@ -195,7 +195,11 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1]))
+        print(detector.shape)
+        if len(detector.shape)<3:
+            reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1]))
+        elif len(detector.shape)==3:
+            reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1],detector.shape[2]))
         counts = np.bincount(indices)
         if average:
             np.add.at(reduced_array, indices, detector)
