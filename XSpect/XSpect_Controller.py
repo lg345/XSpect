@@ -79,7 +79,8 @@ class XESBatchAnalysis(BatchAnalysis):
     def __init__(self):
         self.xes_line='kbeta'
         self.pixels_to_patch=[351,352,529,530,531]
-        self.crystal_d_space=50.6
+        self.crystal_detector_distance=50.6
+        self.crystal_d_space=0.895
         self.crystal_radius=250
         self.adu_cutoff=3.0
         self.rois=[[0,None]]
@@ -116,7 +117,8 @@ class XESBatchAnalysis(BatchAnalysis):
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
         #analysis.patch_pixels_1d(f,'epix_ROI_1')
         f.close_h5()
-        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],self.crystal_d_space,self.crystal_radius)
+        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],A=self.crystal_detector_distance,R=self.crystal_radius,d=self.crystal_d_space)
+        #make_energy_axis(self, run,energy_axis_length, A, R,  mm_per_pixel=0.05, d=0.895):
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                      
         
