@@ -177,7 +177,7 @@ class diagnostics(plotting):
        
         self.hplot(data2plot, thresholds, pt, lt, xl, ys)
         
-    def xes_ROI(self, nshots, kb_limits = [], ka_limits = []):
+    def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle=0):
         
         ## plots summed spectroscopy detector image over first nshots events as well as any ROI limits provided
         
@@ -185,19 +185,26 @@ class diagnostics(plotting):
         roi_limits['Ka'] = ka_limits
         roi_limits['Kb'] = kb_limits
         
+        if setrois:
+            setattr(self, 'xes_roi_limits', roi_limits)
+        
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
+        data2plot_rot = rotate(data2plot, angle, axes=[0,1])
         
         ptype = 'xes'
         
-        self.roiview(data2plot, roi_limits, ptype)
+        self.roiview(data2plot, roi_limits, ptype, energy_dispersive_axis = energy_dispersive_axis)
         
-    def xas_ROI(self, nshots, horiz_limits = [], vert_limits = []):
+    def xas_ROI(self, nshots, horiz_limits = [], vert_limits = [], setrois = False):
     
         ## plots summed spectroscopy detector image over first nshots events as well as any ROI limits provided
         
         roi_limits = {}
         roi_limits['horiz'] = horiz_limits
         roi_limits['vert'] = vert_limits
+        
+        if setrois:
+            setattr(self, 'xas_roi_limits', roi_limits)
         
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
         
