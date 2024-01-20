@@ -99,6 +99,7 @@ class XESBatchAnalysis(BatchAnalysis):
         f.load_run_keys(self.keys,self.friendly_names)
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
         analysis=XESAnalysis()
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
         
         analysis.union_shots(f,'epix_ROI_1',['simultaneous','laser'])
         analysis.separate_shots(f,'epix_ROI_1',['xray','laser'])
@@ -114,7 +115,6 @@ class XESBatchAnalysis(BatchAnalysis):
         f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         
         analysis.pixels_to_patch=self.pixels_to_patch
-        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
         #analysis.patch_pixels_1d(f,'epix_ROI_1')
         f.close_h5()
         analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],A=self.crystal_detector_distance,R=self.crystal_radius,d=self.crystal_d_space)
