@@ -38,13 +38,14 @@ class spectroscopy_experiment(experiment):
         self.detector_dimensions = detector_dimensions
 
 class spectroscopy_run:
-    def __init__(self,spec_experiment,run,verbose=False):
+    def __init__(self,spec_experiment,run,verbose=False,end_index=-1):
         self.spec_experiment=spec_experiment
         self.run_number=run
         self.run_file='%s/%s_Run%04d.h5' % (self.spec_experiment.experiment_directory, self.spec_experiment.experiment_id, self.run_number)
         self.status=['New']
         self.status_datetime=[datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         self.verbose=verbose
+        self.end_index=end_index
     
     def update_status(self,update,):
         self.status.append(update)
@@ -55,11 +56,11 @@ class spectroscopy_run:
     def get_run_shot_properties(self):
         
         with h5py.File(self.run_file, 'r') as fh:
-            total_shots = fh['lightStatus/xray'].shape[0]
-            xray_total = np.sum(fh['lightStatus/xray'])
-            laser_total = np.sum(fh['lightStatus/laser'])
-            self.xray = np.array(fh['lightStatus/xray'])
-            self.laser = np.array(fh['lightStatus/laser'])
+            total_shots = fh['lightStatus/xray'][:self.end_index].shape[0]
+            xray_total = np.sum(fh['lightStatus/xray'][:self.end_index])
+            laser_total = np.sum(fh['lightStatus/laser'][:self.end_index])
+            self.xray = np.array(fh['lightStatus/xray'][:self.end_index])
+            self.laser = np.array(fh['lightStatus/laser'][:self.end_index])
             self.simultaneous=np.logical_and(self.xray,self.laser)
             
         self.run_shots={'Total':total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
@@ -71,7 +72,7 @@ class spectroscopy_run:
             for key, name in zip(keys, friendly_names):
                 
                 try:
-                    setattr(self, name, np.array(fh[key]))
+                    setattr(self, name, np.array(fh[key][:self.end_index]))
                 except KeyError as e:
                     self.update_status('Key does not exist: %s' % e)
                 except MemoryError:
@@ -84,11 +85,11 @@ class spectroscopy_run:
         fh= h5py.File(self.run_file, 'r')
         for key, name in zip(keys, friendly_names):
             try:
-                setattr(self, name, fh[key])
+                setattr(self, name, fh[key][:self.end_index,:,:])
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e)
             except MemoryError:
-                setattr(self, name, fh[key])
+                setattr(self, name, fh[key][:self.end_index,:,:])
                 self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed kept as hdf5 dataset. Time: %.02f seconds' % (end-start))
@@ -331,7 +332,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         factor = 1.2398e4
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
         
-        setattr(run,self.xes_line+'_energy',xaxis)
+        setattr(run,self.xes_line+'_energy',xaxis[::-1])
         run.update_status('XES energy axis generated for %s'%(self.xes_line))
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True,adu_cutoff=3.0):
         detector = getattr(run, detector_key)
