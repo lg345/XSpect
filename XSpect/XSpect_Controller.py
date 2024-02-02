@@ -101,7 +101,7 @@ class XESBatchAnalysis(BatchAnalysis):
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
         analysis=XESAnalysis()
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
-        
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         analysis.union_shots(f,'epix_ROI_1',['simultaneous','laser'])
         analysis.separate_shots(f,'epix_ROI_1',['xray','laser'])
         self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
@@ -111,10 +111,7 @@ class XESBatchAnalysis(BatchAnalysis):
         analysis.reduce_detector_temporal(f,'epix_ROI_1_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
         analysis.reduce_detector_temporal(f,'epix_ROI_1_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
         analysis.normalize_xes(f,'epix_ROI_1_simultaneous_laser_time_binned')
-        analysis.normalize_xes(f,'epix_ROI_1_xray_not_laser_time_binned')
-        
-#        f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
-        
+        analysis.normalize_xes(f,'epix_ROI_1_xray_not_laser_time_binned')   
         analysis.pixels_to_patch=self.pixels_to_patch
         #analysis.patch_pixels_1d(f,'epix_ROI_1')
         f.close_h5()
@@ -131,15 +128,16 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
-        f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
-        
         analysis=XESAnalysis()
         analysis.pixels_to_patch=self.pixels_to_patch
-#        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
-        #f.close_h5()
-#        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],self.crystal_d_space,self.crystal_radius)
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+        analysis.patch_pixels(f,'epix',axis=1)
+        f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
+
+
+
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)

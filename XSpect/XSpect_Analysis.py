@@ -42,7 +42,7 @@ class spectroscopy_run:
         self.spec_experiment=spec_experiment
         self.run_number=run
         self.run_file='%s/%s_Run%04d.h5' % (self.spec_experiment.experiment_directory, self.spec_experiment.experiment_id, self.run_number)
-        self.status=['New']
+        self.status=['New analysis of run %d located in: %s' % (self.run_number,self.run_file)]
         self.status_datetime=[datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         self.verbose=verbose
         self.end_index=end_index
@@ -74,7 +74,7 @@ class spectroscopy_run:
                 try:
                     setattr(self, name, np.array(fh[key][:self.end_index]))
                 except KeyError as e:
-                    self.update_status('Key does not exist: %s' % e)
+                    self.update_status('Key does not exist: %s' % e.args[0])
                 except MemoryError:
                     setattr(self, name, fh[key])
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
@@ -87,7 +87,7 @@ class spectroscopy_run:
             try:
                 setattr(self, name, fh[key][:self.end_index,:,:])
             except KeyError as e:
-                self.update_status('Key does not exist: %s' % e)
+                self.update_status('Key does not exist: %s' % e.args[0])
             except MemoryError:
                 setattr(self, name, fh[key][:self.end_index,:,:])
                 self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
@@ -124,16 +124,18 @@ class SpectroscopyAnalysis:
         run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold,count_before-count_after))
 
     
-    def filter_detector_adu(self,run,detector,adu_threshold=[3.0]):
+    def filter_detector_adu(self,run,detector,adu_threshold=3.0):
         detector_images=getattr(run,detector)
         if isinstance(adu_threshold,list):
             detector_images_adu = detector_images * (detector_images > adu_threshold[0])
-            detector_images_adu = detector_images * (detector_images < adu_threshold[1])
+            detector_images_adu = detector_images_adu * (detector_images_adu < adu_threshold[1])
             run.update_status('Key: %s has been adu filtered by thresholds: %f,%f' % (detector,adu_threshold[0],adu_threshold[1]))
         else:
             detector_images_adu = detector_images * (detector_images > adu_threshold)
             run.update_status('Key: %s has been adu filtered by threshold: %f' % (detector,adu_threshold))
+
         setattr(run,detector,detector_images_adu)
+
         return detector_images_adu
         
     
@@ -166,7 +168,7 @@ class SpectroscopyAnalysis:
             run.update_status(f"Purged key to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
-        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key) + getattr(run,tt_correction_key)
+        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
@@ -209,10 +211,10 @@ class SpectroscopyAnalysis:
             np.add.at(reduced_array, indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
-    def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
+    def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         for pixel in self.pixels_to_patch:
-            self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range)
-    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6):
+            self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
+    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         """
         EPIX detector pixel patching.
         TODO: extend to patch regions instead of per pixel.
@@ -238,7 +240,12 @@ class SpectroscopyAnalysis:
         data = getattr(run, detector_key)
         if mode == 'average':
             neighbor_values = data[:, pixel - patch_range:pixel + patch_range + 1, :]
-            data[:, pixel, :] = np.sum(neighbor_values, axis=1) / neighbor_values.shape[1]
+            new_val=np.sum(neighbor_values, axis=1) / neighbor_values.shape[1]
+
+            if axis==1:
+                data[:, pixel, :] = new_val
+            elif axis==2:
+                data[:,:,pixel]=new_val
         elif mode == 'polynomial':
             patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1, 1)
             patch_range_weights = np.ones(len(patch_x))
@@ -252,7 +259,7 @@ class SpectroscopyAnalysis:
                               kind='quadratic')
             data[pixel, :] = interp(pixel)
         setattr(run,detector_key,data)
-        run.update_status('Detector %s pixel %d patched.'%(detector_key, pixel ))
+        run.update_status('Detector %s pixel %d patched. Old value.'%(detector_key, pixel ))
     def patch_pixels_1d(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
         for pixel in self.pixels_to_patch:
             self.patch_pixel_1d(run,detector_key,pixel,mode,patch_range,deg,poly_range)
@@ -343,7 +350,8 @@ class XESAnalysis(SpectroscopyAnalysis):
             for roi in rois:
                 mask[roi[0]:roi[1]] = True
             masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
-            masked_data = masked_data * (masked_data > adu_cutoff)
+            #masked_data = masked_data * (masked_data > adu_cutoff)
+            #Note the adu filtering should be handled at the controller level
             reduced_data = reduction_function(masked_data, axis=2)
             roi_indices = ', '.join([f"{roi[0]}-{roi[1]}" for roi in rois])
             run.update_status(f"Spatially reduced detector: {detector_key} with combined ROI indices: {roi_indices}")
