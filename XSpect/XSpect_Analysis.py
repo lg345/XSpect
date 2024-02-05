@@ -139,7 +139,10 @@ class SpectroscopyAnalysis:
 
         return detector_images_adu
         
-    
+    def purge_keys(self,run,keys):
+        for detector_key in keys:
+            setattr(run, detector_key, None)
+            run.update_status(f"Purged key to save room: {detector_key}")
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True):
         detector = getattr(run, detector_key)
         if combine:
@@ -200,10 +203,13 @@ class SpectroscopyAnalysis:
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
         print(detector.shape)
-        if len(detector.shape)<3:
-            reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1]))
-        elif len(detector.shape)==3:
-            reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1],detector.shape[2]))
+        expected_length = len(run.time_bins)+1
+
+        if len(detector.shape) < 3:
+            reduced_array = np.zeros((expected_length, detector.shape[1]))
+        elif len(detector.shape) == 3:
+            reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
+
         counts = np.bincount(indices)
         if average:
             np.add.at(reduced_array, indices, detector)
