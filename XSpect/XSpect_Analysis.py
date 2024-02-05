@@ -98,6 +98,18 @@ class spectroscopy_run:
     def close_h5(self):
         self.h5.close()
         del self.h5
+    
+    def purge_all_keys(self,keys_to_keep):
+        #all_attributes = list(self.__dict__.keys())
+        # Remove attributes that are not in the specified list
+        #for attribute in all_attributes:
+        #    if attribute not in keys_to_keep:
+        #        delattr(self, attribute)
+        #        self.update_status(f"Purged key to save room: {attribute}")
+                
+        new_dict = {attr: value for attr, value in self.__dict__.items() if attr in keys_to_keep}
+        # Assign the new dictionary to __dict__
+        self.__dict__ = new_dict
         
 class SpectroscopyAnalysis:
     def __init__(self):
@@ -143,6 +155,8 @@ class SpectroscopyAnalysis:
         for detector_key in keys:
             setattr(run, detector_key, None)
             run.update_status(f"Purged key to save room: {detector_key}")
+            
+    
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True):
         detector = getattr(run, detector_key)
         if combine:
