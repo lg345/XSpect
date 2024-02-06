@@ -216,7 +216,7 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        print(detector.shape)
+        #print(detector.shape)
         expected_length = len(run.time_bins)+1
 
         if len(detector.shape) < 3:
