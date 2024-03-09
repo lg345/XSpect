@@ -221,6 +221,54 @@ class XESBatchAnalysis(BatchAnalysis):
 class XESBatchAnalysisRotation(XESBatchAnalysis):
     def __init__(self):
         super().__init__()
+    
+    def primary_analysis_static_parallel_loop(self, cores, experiment, verbose=False):
+        self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
+        pool = Pool(processes=cores)
+        analyzed_runs = []
+
+        def callback(result):
+            analyzed_runs.append(result)
+
+        with tqdm(total=len(self.runs), desc="Processing Runs", unit="Run") as pbar:
+            for analyzed_run in pool.imap(partial(self.primary_analysis_static, experiment=experiment, verbose=verbose), self.runs):
+                pbar.update(1)
+                analyzed_runs.append(analyzed_run)
+
+        pool.close()
+        pool.join()
+
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        self.analyzed_runs = analyzed_runs
+        self.update_status("Parallel analysis loop completed.")
+
+    def primary_analysis_static(self, run, experiment, verbose=False, start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
+            try:
+                start_index=self.start_index
+            except AttributeError:
+                start_index=0
+        self.end_index=end_index
+        self.start_index=start_index
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
+        analysis=XESAnalysis()
+        analysis.pixels_to_patch=self.pixels_to_patch
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+        analysis.patch_pixels(f,'epix',axis=1)
+        # analysis.patch_pixels_1d(f,'epix')
+        # f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                           
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff, reduction_axis=1)
+        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1']
+        # f.purge_all_keys(keys_to_save)
+        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+        return f
   
     def primary_analysis(self,run,experiment,verbose=False,start_index=None,end_index=None):
         if end_index==None:
