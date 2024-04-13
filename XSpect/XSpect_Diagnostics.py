@@ -57,7 +57,7 @@ class plotting:
         fig.tight_layout()
         plt.show()
     
-    def roiview(self, data, thres, plt_type):
+    def roiview(self, data, thres, plt_type, energy_dispersive_axis = 'vert'):
         
         cl = (np.nanpercentile(data, 1), np.nanpercentile(data, 99))
         
@@ -66,11 +66,18 @@ class plotting:
             p1 = ax[0].imshow(data, clim = cl)
             ax[0].set_title('XES ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
-                if thres[lim]:
-                    roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
-                    p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
-                    for ii in range(len(thres[lim])):
-                        ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
+                if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
+                    if thres[lim]:
+                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 1)
+                        p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        for ii in range(len(thres[lim])):
+                            ax[0].axhline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
+                else:
+                    if thres[lim]:
+                        roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
+                        p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        for ii in range(len(thres[lim])):
+                            ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
             ax[1].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
             ax[1].set_xlabel('Pixel')
             ax[1].set_ylabel('Summed Intensity')
@@ -140,17 +147,44 @@ class diagnostics(plotting):
                 except KeyError as e:
                     print('Key does not exist: %s' % e)
         
-    def adu_histogram(self, nshots, thresholds):
+    def adu_histogram(self, nshots, thresholds, ROIopt = False, energy_dispersive_axis = 'vert'):
         
         ## generate linearized array of pixel intensities (ADU) over first nshots of events and plot histogram
         
-        data2plot = self.h5[self.datadict['epix']][0:nshots,:,:].ravel()
         pt = 'Pixel Intensity on ePix100 Run {} ({} shots)'.format(self.run, nshots)
         lt = 'ADU Thresholds'
-        xl = 'Pixel Intensity (ADU)'
+        xl = 'Pixel Intensity (keV)'
         ys = 'log'
-       
-        self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+        
+        if ROIopt:
+            if hasattr(self, 'xes_roi_limits'):
+                print('Calculating histograms for XES ROIs:')
+                thres = self.xes_roi_limits
+                for lim in thres:
+                    if thres[lim]:
+                        if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
+                            data2plot = self.h5[self.datadict['epix']][0:nshots,thres[lim][0]:thres[lim][1],:].ravel()
+                        else:
+                            data2plot = self.h5[self.datadict['epix']][0:nshots,:,thres[lim][0]:thres[lim][1]].ravel()
+                            
+                        pt = 'Pixel Intensity in {} ROI ({} shots)'.format(lim, nshots)
+                        self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+                        
+            elif hasattr(self, 'xas_roi_limits'):
+                print('Calculating histograms for XAS ROI:')
+                thres = self.xas_roi_limits
+                data2plot = self.h5[self.datadict['epix']][0:nshots,thres['vert'][0]:thres['vert'][1],thres['horiz'][0]:thres['horiz'][1]].ravel()
+                pt = 'Pixel Intensity in XAS ROI ({} shots)'.format(nshots)
+                self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+                
+            else:
+                print('Error: no ROIs have been set, run function xes_ROI or xas_ROI with option setrois = True)')
+                return
+            
+        else:
+            data2plot = self.h5[self.datadict['epix']][0:nshots,:,:].ravel()
+            pt = 'Pixel Intensity on ePix100 Run {} ({} shots)'.format(self.run, nshots) 
+            self.hplot(data2plot, thresholds, pt, lt, xl, ys)
         
     def ipm_histogram(self, thresholds):
         
@@ -177,7 +211,7 @@ class diagnostics(plotting):
        
         self.hplot(data2plot, thresholds, pt, lt, xl, ys)
         
-    def xes_ROI(self, nshots, kb_limits = [], ka_limits = []):
+    def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert'):
         
         ## plots summed spectroscopy detector image over first nshots events as well as any ROI limits provided
         
@@ -185,19 +219,25 @@ class diagnostics(plotting):
         roi_limits['Ka'] = ka_limits
         roi_limits['Kb'] = kb_limits
         
+        if setrois:
+            setattr(self, 'xes_roi_limits', roi_limits)
+        
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
         
         ptype = 'xes'
         
-        self.roiview(data2plot, roi_limits, ptype)
+        self.roiview(data2plot, roi_limits, ptype, energy_dispersive_axis = energy_dispersive_axis)
         
-    def xas_ROI(self, nshots, horiz_limits = [], vert_limits = []):
+    def xas_ROI(self, nshots, horiz_limits = [], vert_limits = [], setrois = False):
     
         ## plots summed spectroscopy detector image over first nshots events as well as any ROI limits provided
         
         roi_limits = {}
         roi_limits['horiz'] = horiz_limits
         roi_limits['vert'] = vert_limits
+        
+        if setrois:
+            setattr(self, 'xas_roi_limits', roi_limits)
         
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
         

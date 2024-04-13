@@ -35,8 +35,8 @@ class SpectroscopyVisualization:
         
 class XESVisualization(SpectroscopyVisualization):
     def __init__(self):
-        vmin=-0.1
-        vmax=0.1
+        self.vmin=-0.1
+        self.vmax=0.1
         pass
     def plot_1d_XES(self, run, detector_key, target_key, low=-np.inf,high=np.inf,axis=0):
         target=getattr(run,target_key)
