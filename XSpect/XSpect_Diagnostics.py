@@ -211,7 +211,7 @@ class diagnostics(plotting):
        
         self.hplot(data2plot, thresholds, pt, lt, xl, ys)
         
-    def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert'):
+    def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle=0):
         
         ## plots summed spectroscopy detector image over first nshots events as well as any ROI limits provided
         
@@ -223,6 +223,7 @@ class diagnostics(plotting):
             setattr(self, 'xes_roi_limits', roi_limits)
         
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
+        data2plot_rot = rotate(data2plot, angle, axes=[0,1])
         
         ptype = 'xes'
         

@@ -38,13 +38,15 @@ class spectroscopy_experiment(experiment):
         self.detector_dimensions = detector_dimensions
 
 class spectroscopy_run:
-    def __init__(self,spec_experiment,run,verbose=False):
+    def __init__(self,spec_experiment,run,verbose=False,end_index=-1,start_index=0):
         self.spec_experiment=spec_experiment
         self.run_number=run
         self.run_file='%s/%s_Run%04d.h5' % (self.spec_experiment.experiment_directory, self.spec_experiment.experiment_id, self.run_number)
-        self.status=['New']
+        self.status=['New analysis of run %d located in: %s' % (self.run_number,self.run_file)]
         self.status_datetime=[datetime.now().strftime("%Y-%m-%d %H:%M:%S")]
         self.verbose=verbose
+        self.end_index=end_index
+        self.start_index=start_index
     
     def update_status(self,update,):
         self.status.append(update)
@@ -55,14 +57,14 @@ class spectroscopy_run:
     def get_run_shot_properties(self):
         
         with h5py.File(self.run_file, 'r') as fh:
-            total_shots = fh['lightStatus/xray'].shape[0]
-            xray_total = np.sum(fh['lightStatus/xray'])
-            laser_total = np.sum(fh['lightStatus/laser'])
-            self.xray = np.array(fh['lightStatus/xray'])
-            self.laser = np.array(fh['lightStatus/laser'])
+            self.total_shots = fh['lightStatus/xray'][self.start_index:self.end_index].shape[0]
+            xray_total = np.sum(fh['lightStatus/xray'][self.start_index:self.end_index])
+            laser_total = np.sum(fh['lightStatus/laser'][self.start_index:self.end_index])
+            self.xray = np.array(fh['lightStatus/xray'][self.start_index:self.end_index])
+            self.laser = np.array(fh['lightStatus/laser'][self.start_index:self.end_index])
             self.simultaneous=np.logical_and(self.xray,self.laser)
             
-        self.run_shots={'Total':total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
+        self.run_shots={'Total':self.total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
         self.update_status('Obtained shot properties')
     
     def load_run_keys(self, keys, friendly_names):
@@ -71,9 +73,9 @@ class spectroscopy_run:
             for key, name in zip(keys, friendly_names):
                 
                 try:
-                    setattr(self, name, np.array(fh[key]))
+                    setattr(self, name, np.array(fh[key][self.start_index:self.end_index]))
                 except KeyError as e:
-                    self.update_status('Key does not exist: %s' % e)
+                    self.update_status('Key does not exist: %s' % e.args[0])
                 except MemoryError:
                     setattr(self, name, fh[key])
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
@@ -84,11 +86,11 @@ class spectroscopy_run:
         fh= h5py.File(self.run_file, 'r')
         for key, name in zip(keys, friendly_names):
             try:
-                setattr(self, name, fh[key])
+                setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
             except KeyError as e:
-                self.update_status('Key does not exist: %s' % e)
+                self.update_status('Key does not exist: %s' % e.args[0])
             except MemoryError:
-                setattr(self, name, fh[key])
+                setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
                 self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed kept as hdf5 dataset. Time: %.02f seconds' % (end-start))
@@ -96,6 +98,18 @@ class spectroscopy_run:
     def close_h5(self):
         self.h5.close()
         del self.h5
+    
+    def purge_all_keys(self,keys_to_keep):
+        #all_attributes = list(self.__dict__.keys())
+        # Remove attributes that are not in the specified list
+        #for attribute in all_attributes:
+        #    if attribute not in keys_to_keep:
+        #        delattr(self, attribute)
+        #        self.update_status(f"Purged key to save room: {attribute}")
+                
+        new_dict = {attr: value for attr, value in self.__dict__.items() if attr in keys_to_keep}
+        # Assign the new dictionary to __dict__
+        self.__dict__ = new_dict
         
 class SpectroscopyAnalysis:
     def __init__(self):
@@ -123,18 +137,25 @@ class SpectroscopyAnalysis:
         run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold,count_before-count_after))
 
     
-    def filter_detector_adu(self,run,detector,adu_threshold=[3.0]):
+    def filter_detector_adu(self,run,detector,adu_threshold=3.0):
         detector_images=getattr(run,detector)
         if isinstance(adu_threshold,list):
             detector_images_adu = detector_images * (detector_images > adu_threshold[0])
-            detector_images_adu = detector_images * (detector_images < adu_threshold[1])
+            detector_images_adu = detector_images_adu * (detector_images_adu < adu_threshold[1])
             run.update_status('Key: %s has been adu filtered by thresholds: %f,%f' % (detector,adu_threshold[0],adu_threshold[1]))
         else:
             detector_images_adu = detector_images * (detector_images > adu_threshold)
             run.update_status('Key: %s has been adu filtered by threshold: %f' % (detector,adu_threshold))
+
         setattr(run,detector,detector_images_adu)
+
         return detector_images_adu
         
+    def purge_keys(self,run,keys):
+        for detector_key in keys:
+            setattr(run, detector_key, None)
+            run.update_status(f"Purged key to save room: {detector_key}")
+            
     
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True):
         detector = getattr(run, detector_key)
@@ -165,7 +186,7 @@ class SpectroscopyAnalysis:
             run.update_status(f"Purged key to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
-        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key) + getattr(run,tt_correction_key)
+        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
@@ -195,7 +216,14 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        reduced_array = np.zeros((np.max(indices) + 1, detector.shape[1]))
+        #print(detector.shape)
+        expected_length = len(run.time_bins)+1
+
+        if len(detector.shape) < 3:
+            reduced_array = np.zeros((expected_length, detector.shape[1]))
+        elif len(detector.shape) == 3:
+            reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
+
         counts = np.bincount(indices)
         if average:
             np.add.at(reduced_array, indices, detector)
@@ -204,10 +232,10 @@ class SpectroscopyAnalysis:
             np.add.at(reduced_array, indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
-    def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
+    def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         for pixel in self.pixels_to_patch:
-            self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range)
-    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6):
+            self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
+    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         """
         EPIX detector pixel patching.
         TODO: extend to patch regions instead of per pixel.
@@ -233,7 +261,12 @@ class SpectroscopyAnalysis:
         data = getattr(run, detector_key)
         if mode == 'average':
             neighbor_values = data[:, pixel - patch_range:pixel + patch_range + 1, :]
-            data[:, pixel, :] = np.sum(neighbor_values, axis=1) / neighbor_values.shape[1]
+            new_val=np.sum(neighbor_values, axis=1) / neighbor_values.shape[1]
+
+            if axis==1:
+                data[:, pixel, :] = new_val
+            elif axis==2:
+                data[:,:,pixel]=new_val
         elif mode == 'polynomial':
             patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1, 1)
             patch_range_weights = np.ones(len(patch_x))
@@ -247,7 +280,7 @@ class SpectroscopyAnalysis:
                               kind='quadratic')
             data[pixel, :] = interp(pixel)
         setattr(run,detector_key,data)
-        run.update_status('Detector %s pixel %d patched.'%(detector_key, pixel ))
+        run.update_status('Detector %s pixel %d patched. Old value.'%(detector_key, pixel ))
     def patch_pixels_1d(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
         for pixel in self.pixels_to_patch:
             self.patch_pixel_1d(run,detector_key,pixel,mode,patch_range,deg,poly_range)
@@ -327,7 +360,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         factor = 1.2398e4
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
         
-        setattr(run,self.xes_line+'_energy',xaxis)
+        setattr(run,self.xes_line+'_energy',xaxis[::-1])
         run.update_status('XES energy axis generated for %s'%(self.xes_line))
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True,adu_cutoff=3.0):
         detector = getattr(run, detector_key)
@@ -338,7 +371,8 @@ class XESAnalysis(SpectroscopyAnalysis):
             for roi in rois:
                 mask[roi[0]:roi[1]] = True
             masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
-            masked_data = masked_data * (masked_data > adu_cutoff)
+            #masked_data = masked_data * (masked_data > adu_cutoff)
+            #Note the adu filtering should be handled at the controller level
             reduced_data = reduction_function(masked_data, axis=2)
             roi_indices = ', '.join([f"{roi[0]}-{roi[1]}" for roi in rois])
             run.update_status(f"Spatially reduced detector: {detector_key} with combined ROI indices: {roi_indices}")

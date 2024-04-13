@@ -70,10 +70,13 @@ class XESVisualization(SpectroscopyVisualization):
         laser_on_spectrum=xes_analysis.summed_laser_on_normalized
         laser_off_spectrum=xes_analysis.summed_laser_off_normalized
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
-        energy=xes_analysis.analyzed_runs[0].kbeta_energy
+        try:
+            energy=xes_analysis.analyzed_runs[0].kbeta_energy
+        except:
+            energy=np.linspace(0,np.shape(laser_on_spectrum),1)
         #vmin, vmax = np.percentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,np.min(energy),np.max(energy)])
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,energy[0],energy[-1]])
         plt.colorbar()
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')
@@ -81,6 +84,9 @@ class XESVisualization(SpectroscopyVisualization):
         
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):
+        self.vmin=-0.1
+        self.vmax=0.1
+        pass
         pass
     def plot_XAS(self,run,detector_key,ccm_key):
         det=getattr(run,detector_key)
@@ -112,7 +118,7 @@ class XASVisualization(SpectroscopyVisualization):
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
         vmin, vmax = np.percentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=-0.5, vmax=0.5, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
         plt.colorbar()
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')
