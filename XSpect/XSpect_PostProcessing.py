@@ -26,14 +26,14 @@ class analysis_functions:
     def __init__(self):
         pass
     
-    def expfunc(self, x, k, amp = []):
+    def expfunc(self, x, k, amp = [], x0 = 0):
         ## returns a vector (or matrix of column vectors, depending on the length of k) containing an exponential decay evalutated over x values x with rate constant(s) k
         if not isinstance(k, list):
             k = [k]
         k = np.abs(k) # always takes positive values and enforces exp decay
         f = np.empty((len(x), len(k)))
         for i in range(len(k)):
-            f[:,i] = np.exp(-k[i]*x)
+            f[:,i] = np.exp(-k[i]*(x-x0))
         return f
     
     def expfunc_heaviside(self, x, k, amp = [], x0 = 0):
@@ -54,7 +54,7 @@ class analysis_functions:
         k = np.abs(k)
         f = np.empty((len(x), len(k)))
         for i in range(len(k)):
-            f[:,i] = amp[i]*np.exp(-k[i]*(x-x0))*np.heaviside(x, 0.5) ## h(x) = 0 (x <= 0), h(x) = 1 (x > 0)
+            f[:,i] = amp[i]*np.exp(-k[i]*(x-x0))*np.heaviside((x-x0), 0.5) ## h(x) = 0 (x <= 0), h(x) = 1 (x > 0)
         return f
     
     def gaussfunc(self, x, center, sigma):
