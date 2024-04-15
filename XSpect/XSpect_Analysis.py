@@ -33,6 +33,8 @@ class experiment:
         raise Exception("Unable to find experiment directory.")
 
 class spectroscopy_experiment(experiment):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
     def add_detector(self, detector_name, detector_dimensions):
         self.detector_name = detector_name
         self.detector_dimensions = detector_dimensions
@@ -397,15 +399,25 @@ class XASAnalysis(SpectroscopyAnalysis):
         pass
     def make_ccm_axis(self,run,energies):
         elist=energies
-        addon = (elist[-1] - elist[-2])/2 # add on energy 
-        elist2 = np.append(elist,elist[-1]+addon) # elist2 will be elist with dummy value at end
-        elist_center = np.empty_like(elist2)
-        for ii in np.arange(elist.shape[0]):
-            if ii == 0:
-                elist_center[ii] = elist2[ii] - (elist2[ii+1] - elist2[ii])/2
+#         addon = (elist[-1] - elist[-2])/2 # add on energy 
+#         elist2 = np.append(elist,elist[-1]+addon) # elist2 will be elist with dummy value at end
+#         elist_center = np.empty_like(elist2)
+#         for ii in np.arange(elist.shape[0]):
+#             if ii == 0:
+#                 elist_center[ii] = elist2[ii] - (elist2[ii+1] - elist2[ii])/2
+#             else:
+#                 elist_center[ii] = elist2[ii] - (elist2[ii] - elist2[ii-1])/2
+#                 elist_center[-1] = elist2[-1]
+        addon = (elist[-1] - elist[-2])/2
+        elist2 = np.append(elist,elist[-1]+addon)
+        elist_center = np.empty_like(elist)
+
+        for ii in np.arange(elist_center.shape[0]):
+            if ii == elist_center.shape[0]:
+                elist_center[ii] = elist[-1]+addon
             else:
-                elist_center[ii] = elist2[ii] - (elist2[ii] - elist2[ii-1])/2
-                elist_center[-1] = elist2[-1]
+                elist_center[ii] = elist2[ii+1] - (elist2[ii+1] - elist2[ii])/2    
+    
         setattr(run,'ccm_bins',elist_center)
     def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
