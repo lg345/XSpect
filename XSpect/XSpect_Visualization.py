@@ -98,6 +98,11 @@ class XASVisualization(SpectroscopyVisualization):
         xas_laser=getattr(xas_analysis.analyzed_runs[0],xas_laser_key)
         norm=getattr(xas_analysis.analyzed_runs[0],norm_key)
         norm_laser=getattr(xas_analysis.analyzed_runs[0],norm_laser_key)
+        try:
+            ccm_bins=getattr(xas_analysis.analyzed_runs[0],'ccm_energies')
+            setattr(xas_analysis,'ccm_bins',ccm_bins)
+        except:
+            pass
         summed_laser_on=np.zeros_like(xas_laser)
         summed_laser_off=np.zeros_like(xas)
         summed_norm_on=np.zeros_like(norm_laser)
@@ -116,10 +121,50 @@ class XASVisualization(SpectroscopyVisualization):
         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
-        vmin, vmax = np.percentile(difference_spectrum, [0,99])
-        plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
-        plt.colorbar()
-        plt.xlabel('Time (ps)')
-        plt.ylabel('Energy (keV)')
         setattr(xas_analysis,'difference_spectrum',difference_spectrum)
+#         vmin, vmax = np.nanpercentile(difference_spectrum, [0,99])
+        plt.figure(dpi=100)
+#         plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
+        vmax = np.nanmax(np.abs(difference_spectrum))
+        vmin = -vmax
+        contlevels = np.linspace(vmin*0.5, vmax*0.5, 20)
+        
+        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu')
+        plt.colorbar()
+        plt.xlabel('Energy (keV)')
+        plt.ylabel('Time (ps)')
+        
+#     def plot_2d_difference_spectrum_real_axes(self,xas_analysis):
+#         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
+#         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
+#         difference_spectrum=laser_on_spectrum-laser_off_spectrum
+#         vmin, vmax = np.percentile(difference_spectrum, [0,99])
+#         plt.figure(dpi=100)
+#         plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
+#         plt.contourf(
+#         plt.colorbar()
+#         plt.xlabel('Time (ps)')
+#         plt.ylabel('Energy (keV)')
+#         setattr(xas_analysis,'difference_spectrum',difference_spectrum)
+
+    def plot_1d_difference_time(self, xas_analysis):
+        laser_on = xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
+        laser_off = xas_analysis.summed_laser_off/xas_analysis.summed_norm_off
+        
+        difference = laser_on - laser_off
+        setattr(xas_analysis, 'difference_trace', difference)
+        plt.figure(dpi=100)
+        plt.plot(xas_analysis.time_bins, difference)
+        plt.xlabel('Time (ps)')
+        plt.ylabel(r'$\Delta XAS$')
+        
+    def plot_1d_difference_spectrum(self, xas_analysis):
+        laser_on = xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
+        laser_off = xas_analysis.summed_laser_off/xas_analysis.summed_norm_off
+        
+        difference = laser_on - laser_off
+        setattr(xas_analysis, 'difference_trace', difference)
+        plt.figure(dpi=100)
+        plt.plot(xas_analysis.ccm_bins, difference)
+        plt.xlabel('Energy (keV)')
+        plt.ylabel(r'$\Delta XAS$')

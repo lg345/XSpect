@@ -334,7 +334,12 @@ class XASBatchAnalysis(BatchAnalysis):
         
         f.load_run_keys(self.keys,self.friendly_names)
         analysis=XASAnalysis()
-        elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+        try:
+            ccm_val = getattr(f, 'ccm_E_setpoint')
+            elist = np.unique(ccm_val)
+        except KeyError as e:
+            self.update_status('Key does not exist: %s' % e.args[0])
+            elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
         analysis.make_ccm_axis(f,elist)
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
@@ -355,4 +360,90 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
         analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
         analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        return f
+
+class XASBatchAnalysis_1D_ccm(BatchAnalysis):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.minccm=7.105
+        self.maxccm=7.135
+        self.numpoints_ccm=90
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
+        f.get_run_shot_properties()
+        
+        f.load_run_keys(self.keys,self.friendly_names)
+        analysis=XASAnalysis()
+        try:
+            ccm_val = getattr(f, 'ccm_E_setpoint')
+            elist = np.unique(ccm_val)
+        except KeyError as e:
+            self.update_status('Key does not exist: %s' % e.args[0])
+            elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+        analysis.make_ccm_axis(f,elist)
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'ccm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm',['xray','laser'])
+#         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+#         analysis.time_binning(f,self.time_bins)
+        analysis.ccm_binning(f,'ccm_bins','ccm')
+#         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+#         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
+        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        return f
+
+class XASBatchAnalysis_1D_time(BatchAnalysis):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.minccm=7.105
+        self.maxccm=7.135
+        self.numpoints_ccm=90
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
+        f.get_run_shot_properties()
+        
+        f.load_run_keys(self.keys,self.friendly_names)
+        analysis=XASAnalysis()
+#         try:
+#             ccm_val = getattr(f, 'ccm_E_setpoint')
+#             elist = np.unique(ccm_val)
+#         except KeyError as e:
+#             self.update_status('Key does not exist: %s' % e.args[0])
+#             elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+#         analysis.make_ccm_axis(f,elist)
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+#         analysis.union_shots(f,'ccm',['simultaneous','laser'])
+#         analysis.separate_shots(f,'ccm',['xray','laser'])
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.time_bins)
+#         analysis.ccm_binning(f,'ccm_bins','ccm')
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+#         analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
+#         analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
+        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
         return f

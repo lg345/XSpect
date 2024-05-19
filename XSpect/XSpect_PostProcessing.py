@@ -380,5 +380,21 @@ class post_analysis(analysis_functions):
         for plot in ax:
             for axis in ['top', 'bottom', 'left', 'right']:
                 plot.spines[axis].set_linewidth(width)
+        
+        # calculate standard errors (se) and 95% confidence intervals (ci) from jacobian
+        J = res_lsq.jac
+        res = res_lsq.fun
+        n = res.shape[0]
+        p = J.shape[1]
+        v = n - p
+        rmse = np.linalg.norm(res, ord = 2)/np.sqrt(v)
+        cov = np.linalg.inv(J.T@J)*rmse**2
+        se = np.sqrt(np.diag(cov))
+        setattr(res_lsq, 'se', se)
+        
+        a = 0.05
+        delta = se*scipy.stats.t.ppf(1 - a/2, v)
+        ci = np.array([res_lsq.x-delta, res_lsq.x+delta])
+        setattr(res_lsq, 'ci', ci)             
                 
         return res_lsq, C_fit, E_fit

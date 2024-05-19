@@ -419,18 +419,41 @@ class XASAnalysis(SpectroscopyAnalysis):
                 elist_center[ii] = elist2[ii+1] - (elist2[ii+1] - elist2[ii])/2    
     
         setattr(run,'ccm_bins',elist_center)
+        setattr(run,'ccm_energies',elist)
     def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.max(timing_indices) + 1,np.max(ccm_indices) + 1))
+        reduced_array = np.zeros((np.max(timing_indices)+1, np.max(ccm_indices) + 1))
+#         reduced_array = np.zeros((run.time_bins.shape[0], run.ccm_bins.shape[0]))
         #for idx,i in enumerate(detector):
         #    reduced_array[timing_indices[idx],ccm_indices[idx]]=detector[idx]+reduced_array[timing_indices[idx],ccm_indices[idx]]
         unique_indices =np.column_stack((timing_indices, ccm_indices))
         np.add.at(reduced_array, (unique_indices[:, 0], unique_indices[:, 1]), detector)
+        reduced_array = reduced_array[:-1,:]
         setattr(run, detector_key+'_time_energy_binned', reduced_array)
         
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
+        
+    def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False):
+        detector = getattr(run, detector_key)
+        ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
+        reduced_array = np.zeros(np.max(ccm_indices) + 1)
+        np.add.at(reduced_array, ccm_indices, detector)
+        setattr(run, detector_key+'_energy_binned', reduced_array)
+        
+        run.update_status('Detector %s binned in energy into key: %s'%(detector_key,detector_key+'_energy_binned') )
+        
+    def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices, average=False):
+        detector = getattr(run, detector_key)
+        timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
+        reduced_array = np.zeros(np.max(timing_indices)+1)
+        np.add.at(reduced_array, timing_indices, detector)
+        reduced_array = reduced_array[:-1]
+        setattr(run, detector_key+'_time_binned', reduced_array)
+        
+        run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
+        
     def ccm_binning(self,run,ccm_bins_key,ccm_key='ccm'):
         ccm=getattr(run,ccm_key)
         bins=getattr(run,ccm_bins_key)
