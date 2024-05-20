@@ -87,13 +87,12 @@ class XASVisualization(SpectroscopyVisualization):
         self.vmin=-0.1
         self.vmax=0.1
         pass
-        pass
     def plot_XAS(self,run,detector_key,ccm_key):
         det=getattr(run,detector_key)
         ccm=getattr(run,ccm_key)
         plt.plot(ccm,det)
     
-    def combine_spectra(self,xas_analysis,xas_laser_key,xas_key,norm_laser_key,norm_key):
+    def combine_spectra(self,xas_analysis,xas_laser_key,xas_key,norm_laser_key,norm_key,interpolate=False):
         xas=getattr(xas_analysis.analyzed_runs[0],xas_key)
         xas_laser=getattr(xas_analysis.analyzed_runs[0],xas_laser_key)
         norm=getattr(xas_analysis.analyzed_runs[0],norm_key)
@@ -107,11 +106,25 @@ class XASVisualization(SpectroscopyVisualization):
         summed_laser_off=np.zeros_like(xas)
         summed_norm_on=np.zeros_like(norm_laser)
         summed_norm_off=np.zeros_like(norm)
-        for run in xas_analysis.analyzed_runs:
-            summed_laser_on+=getattr(run,xas_laser_key)
-            summed_laser_off+=getattr(run,xas_key)
-            summed_norm_on+=getattr(run,norm_laser_key)
-            summed_norm_off+=getattr(run,norm_key)
+        for idx,run in enumerate(xas_analysis.analyzed_runs):
+            if idx>0 and interpolate==True:
+                raise NotImplementedError#('Problems still. It needs to interp2d rather than interp1d.')
+                from scipy.interpolate import interp1d
+                ccm=getattr(run,'ccm_energies')
+                interp_laser_on=interp1d(ccm,getattr(run,xas_laser_key),fill_value=0,bounds_error=False)
+                interp_laser_off=interp1d(ccm,getattr(run,xas_key),fill_value=0,bounds_error=False)
+                interp_norm_on=interp1d(ccm,getattr(run,norm_laser_key),fill_value=0,bounds_error=False)
+                interp_norm_off=interp1d(ccm,getattr(run,norm_key),fill_value=0,bounds_error=False)
+                
+                summed_laser_on+=interp_laser_on(ccm_bins)
+                summed_laser_off+=interp_laser_on(ccm_bins)
+                summed_norm_on+=interp_laser_on(ccm_bins)
+                summed_norm_off+=interp_laser_on(ccm_bins)
+            else:
+                summed_laser_on+=np.array(getattr(run,xas_laser_key))
+                summed_laser_off+=np.array(getattr(run,xas_key))
+                summed_norm_on+=np.array(getattr(run,norm_laser_key))
+                summed_norm_off+=np.array(getattr(run,norm_key))
         xas_analysis.summed_laser_on=summed_laser_on
         xas_analysis.summed_laser_off=summed_laser_off
         xas_analysis.summed_norm_on=summed_norm_on

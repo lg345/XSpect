@@ -102,6 +102,10 @@ class spectroscopy_run:
         end=time.time()
         self.update_status('HDF5 import of keys completed kept as hdf5 dataset. Time: %.02f seconds' % (end-start))
         self.h5=fh
+    def load_sum_run_scattering(self,key):
+        with h5py.File(self.run_file, 'r') as fh:
+            setattr(self, 'scattering', np.nansum(np.nansum(fh[key][:,:,20:80],axis=1),axis=1))
+        
     def close_h5(self):
         self.h5.close()
         del self.h5
@@ -441,7 +445,7 @@ class XASAnalysis(SpectroscopyAnalysis):
     
         setattr(run,'ccm_bins',elist_center)
         setattr(run,'ccm_energies',elist)
-    def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=False):
+    def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=True):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
@@ -467,8 +471,9 @@ class XASAnalysis(SpectroscopyAnalysis):
         
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices, average=False):
         detector = getattr(run, detector_key)
+        time_bins=run.time_bins
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros(np.max(timing_indices)+1)
+        reduced_array = np.zeros(np.shape(time_bins)[0]+1)
         np.add.at(reduced_array, timing_indices, detector)
         reduced_array = reduced_array[:-1]
         setattr(run, detector_key+'_time_binned', reduced_array)

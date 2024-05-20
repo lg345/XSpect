@@ -333,6 +333,9 @@ class XASBatchAnalysis(BatchAnalysis):
         f.get_run_shot_properties()
         
         f.load_run_keys(self.keys,self.friendly_names)
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:-1]
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
@@ -427,6 +430,8 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
 #             self.update_status('Key does not exist: %s' % e.args[0])
 #             elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
 #         analysis.make_ccm_axis(f,elist)
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.time_bins)
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         analysis.union_shots(f,'epix',['simultaneous','laser'])
@@ -435,8 +440,8 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
         analysis.separate_shots(f,'ipm',['xray','laser'])
 #         analysis.union_shots(f,'ccm',['simultaneous','laser'])
 #         analysis.separate_shots(f,'ccm',['xray','laser'])
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        analysis.time_binning(f,self.time_bins)
+
+
 #         analysis.ccm_binning(f,'ccm_bins','ccm')
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
@@ -457,6 +462,8 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis=XASAnalysis()
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
+        
+            
         analysis.bin_uniques(f,'scan')
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
