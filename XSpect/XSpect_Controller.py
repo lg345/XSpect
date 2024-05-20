@@ -450,15 +450,13 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
 
 class ScanAnalysis_1D(BatchAnalysis):
     def __init__(self, *args, **kwargs):
-        self.keys=['epics/ccm_E','epicsUser/ccm_E_setpoint','tt/ttCorr','epics/lxt_ttc', 'enc/lasDelay' , 'ipm5/sum','tt/AMPL','epix_2/ROI_0_sum','scan/var0'] 
-        self.names=['ccm','ccm_E_setpoint','time_tool_correction','lxt_ttc'  ,'encoder','ipm', 'time_tool_ampl','epix','scan']
+        super().__init__(*args, **kwargs)
         pass
     def primary_analysis(self,experiment,run,verbose=False):
-        f=XSpect.XSpect_Analysis.spectroscopy_run(experiment,run=run,verbose=True)
-        xas=XSpect.XSpect_Controller.XASBatchAnalysis()
-        analysis=XSpect.XSpect_Analysis.XASAnalysis()
-        self.set_key_aliases(keys,names)
+        f=spectroscopy_run(experiment,run=run,verbose=True)
+        analysis=XASAnalysis()
         f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
         analysis.bin_uniques(f,'scan')
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
@@ -472,3 +470,4 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis.reduce_detector_ccm(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser',average=False)
         analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False)
         analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False)
+        return f

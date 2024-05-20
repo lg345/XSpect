@@ -117,7 +117,7 @@ class XASVisualization(SpectroscopyVisualization):
         xas_analysis.summed_norm_on=summed_norm_on
         xas_analysis.summed_norm_off=summed_norm_off
     
-    def plot_2d_difference_spectrum(self,xas_analysis):
+    def plot_2d_difference_spectrum(self,xas_analysis,vmin=None,vmax=None):
         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
@@ -125,8 +125,9 @@ class XASVisualization(SpectroscopyVisualization):
 #         vmin, vmax = np.nanpercentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
 #         plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
-        vmax = np.nanmax(np.abs(difference_spectrum))
-        vmin = -vmax
+        if (vmin==None and vmax==None):
+            vmax = np.nanmax(np.abs(difference_spectrum))
+            vmin = -vmax
         contlevels = np.linspace(vmin*0.5, vmax*0.5, 20)
         
         plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu')
