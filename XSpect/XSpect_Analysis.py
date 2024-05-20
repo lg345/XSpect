@@ -49,7 +49,12 @@ class spectroscopy_run:
         self.verbose=verbose
         self.end_index=end_index
         self.start_index=start_index
-    
+
+    def get_scan_val(self):
+        with h5py.File(self.run_file, 'r') as fh:
+            self.scan_var=fh['scan/scan_variable']
+            
+        
     def update_status(self,update,):
         self.status.append(update)
         self.status_datetime.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -116,6 +121,22 @@ class spectroscopy_run:
 class SpectroscopyAnalysis:
     def __init__(self):
         pass
+    
+    def bin_uniques(self,run,key):
+        vals = getattr(run,key)
+        bins = np.unique(vals)
+        addon = (bins[-1] - bins[-2])/2 # add on energy 
+        bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
+        bins_center = np.empty_like(bins2)
+        for ii in np.arange(bins.shape[0]):
+            if ii == 0:
+                bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
+            else:
+                bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
+        bins_center[-1] = bins2[-1]
+
+        setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
+        setattr(run,'scanvar_bins',bins_center)
     
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         #filter_mode a is all shots. l is laser+x-ray shots.
