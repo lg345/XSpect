@@ -15,6 +15,8 @@ from datetime import datetime
 import tempfile
 from XSpect.XSpect_Analysis import *
 from XSpect.XSpect_Controller import *
+from scipy.interpolate import interp2d
+
 class SpectroscopyVisualization:                
     def __init__(self):
         pass
@@ -92,44 +94,52 @@ class XASVisualization(SpectroscopyVisualization):
         ccm=getattr(run,ccm_key)
         plt.plot(ccm,det)
     
-    def combine_spectra(self,xas_analysis,xas_laser_key,xas_key,norm_laser_key,norm_key,interpolate=False):
-        xas=getattr(xas_analysis.analyzed_runs[0],xas_key)
-        xas_laser=getattr(xas_analysis.analyzed_runs[0],xas_laser_key)
-        norm=getattr(xas_analysis.analyzed_runs[0],norm_key)
-        norm_laser=getattr(xas_analysis.analyzed_runs[0],norm_laser_key)
+
+
+    def combine_spectra(self, xas_analysis, xas_laser_key, xas_key, norm_laser_key, norm_key, interpolate=False):
+        xas = getattr(xas_analysis.analyzed_runs[0], xas_key)
+        xas_laser = getattr(xas_analysis.analyzed_runs[0], xas_laser_key)
+        norm = getattr(xas_analysis.analyzed_runs[0], norm_key)
+        norm_laser = getattr(xas_analysis.analyzed_runs[0], norm_laser_key)
+
         try:
-            ccm_bins=getattr(xas_analysis.analyzed_runs[0],'ccm_energies')
-            setattr(xas_analysis,'ccm_bins',ccm_bins)
+            ccm_bins = getattr(xas_analysis.analyzed_runs[0], 'ccm_energies')
+            setattr(xas_analysis, 'ccm_bins', ccm_bins)
         except:
             pass
-        summed_laser_on=np.zeros_like(xas_laser)
-        summed_laser_off=np.zeros_like(xas)
-        summed_norm_on=np.zeros_like(norm_laser)
-        summed_norm_off=np.zeros_like(norm)
-        for idx,run in enumerate(xas_analysis.analyzed_runs):
-            if idx>0 and interpolate==True:
-                raise NotImplementedError#('Problems still. It needs to interp2d rather than interp1d.')
-                from scipy.interpolate import interp1d
-                ccm=getattr(run,'ccm_energies')
-                interp_laser_on=interp1d(ccm,getattr(run,xas_laser_key),fill_value=0,bounds_error=False)
-                interp_laser_off=interp1d(ccm,getattr(run,xas_key),fill_value=0,bounds_error=False)
-                interp_norm_on=interp1d(ccm,getattr(run,norm_laser_key),fill_value=0,bounds_error=False)
-                interp_norm_off=interp1d(ccm,getattr(run,norm_key),fill_value=0,bounds_error=False)
-                
-                summed_laser_on+=interp_laser_on(ccm_bins)
-                summed_laser_off+=interp_laser_on(ccm_bins)
-                summed_norm_on+=interp_laser_on(ccm_bins)
-                summed_norm_off+=interp_laser_on(ccm_bins)
+
+        summed_laser_on = np.zeros_like(xas_laser)
+        summed_laser_off = np.zeros_like(xas)
+        summed_norm_on = np.zeros_like(norm_laser)
+        summed_norm_off = np.zeros_like(norm)
+
+        for idx, run in enumerate(xas_analysis.analyzed_runs):
+            if idx > 0 and interpolate:
+                ccm = getattr(run, 'ccm_energies')
+                time = np.arange(xas_laser.shape[0])  # assuming time axis is the first dimension
+
+                interp_laser_on = interp2d(ccm, time, getattr(run, xas_laser_key), fill_value=0, bounds_error=False)
+                interp_laser_off = interp2d(ccm, time, getattr(run, xas_key), fill_value=0, bounds_error=False)
+                interp_norm_on = interp2d(ccm, time, getattr(run, norm_laser_key), fill_value=0, bounds_error=False)
+                interp_norm_off = interp2d(ccm, time, getattr(run, norm_key), fill_value=0, bounds_error=False)
+
+                for t in time:
+                    summed_laser_on[t, :] += interp_laser_on(ccm_bins, t)
+                    summed_laser_off[t, :] += interp_laser_off(ccm_bins, t)
+                    summed_norm_on[t, :] += interp_norm_on(ccm_bins, t)
+                    summed_norm_off[t, :] += interp_norm_off(ccm_bins, t)
             else:
-                summed_laser_on+=np.array(getattr(run,xas_laser_key))
-                summed_laser_off+=np.array(getattr(run,xas_key))
-                summed_norm_on+=np.array(getattr(run,norm_laser_key))
-                summed_norm_off+=np.array(getattr(run,norm_key))
-        xas_analysis.summed_laser_on=summed_laser_on
-        xas_analysis.summed_laser_off=summed_laser_off
-        xas_analysis.summed_norm_on=summed_norm_on
-        xas_analysis.summed_norm_off=summed_norm_off
-    
+                summed_laser_on += np.array(getattr(run, xas_laser_key))
+                summed_laser_off += np.array(getattr(run, xas_key))
+                summed_norm_on += np.array(getattr(run, norm_laser_key))
+                summed_norm_off += np.array(getattr(run, norm_key))
+
+        xas_analysis.summed_laser_on = summed_laser_on
+        xas_analysis.summed_laser_off = summed_laser_off
+        xas_analysis.summed_norm_on = summed_norm_on
+        xas_analysis.summed_norm_off = summed_norm_off
+
+
     def plot_2d_difference_spectrum(self,xas_analysis,vmin=None,vmax=None):
         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
@@ -143,7 +153,7 @@ class XASVisualization(SpectroscopyVisualization):
             vmin = -vmax
         contlevels = np.linspace(vmin*0.5, vmax*0.5, 20)
         
-        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu')
+        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu',extend="max")
         plt.colorbar()
         plt.xlabel('Energy (keV)')
         plt.ylabel('Time (ps)')
