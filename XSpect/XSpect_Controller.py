@@ -270,7 +270,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
   
-    def primary_analysis(self,run,experiment,verbose=False,start_index=None,end_index=None):
+    def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
         if end_index==None:
             end_index=self.end_index
         if start_index==None:
@@ -359,10 +359,10 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
         analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
-        analysis.reduce_detector_ccm_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_ccm_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
         return f
 
 class XASBatchAnalysis_1D_ccm(BatchAnalysis):
@@ -370,7 +370,7 @@ class XASBatchAnalysis_1D_ccm(BatchAnalysis):
         super().__init__(*args, **kwargs)
         self.minccm=7.105
         self.maxccm=7.135
-        self.numpoints_ccm=90
+        self.numpoints_ccm=100
         self.filters=[]
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
@@ -462,8 +462,7 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis=XASAnalysis()
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
-        
-            
+        #f.ccm_bins=f.ccm
         analysis.bin_uniques(f,'scan')
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
@@ -473,8 +472,8 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis.separate_shots(f,'scan',['xray','laser'])
         analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
-        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
         return f
