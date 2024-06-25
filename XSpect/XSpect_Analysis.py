@@ -88,12 +88,14 @@ class spectroscopy_run:
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed. Time: %.02f seconds' % (end-start))
-    def load_run_key_delayed(self, keys, friendly_names):
+    def load_run_key_delayed(self, keys, friendly_names,transpose=False):
         start=time.time()
         fh= h5py.File(self.run_file, 'r')
         for key, name in zip(keys, friendly_names):
             try:
                 setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
+                if transpose:
+                    setattr(self, name, np.transpose(fh[name],axes=(1,2)))
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e.args[0])
             except MemoryError:
@@ -213,7 +215,10 @@ class SpectroscopyAnalysis:
             run.update_status(f"Purged key to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
-        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        if lxt_key==None:
+            run.delays = 0+ getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        else:
+            run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
