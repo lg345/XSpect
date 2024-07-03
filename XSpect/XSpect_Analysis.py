@@ -427,7 +427,22 @@ class XESAnalysis(SpectroscopyAnalysis):
 
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
-        pass
+        pass;
+    def trim_ccm(self,run,threshold=120):
+        '''
+        Method to trim the ccm values for how many shots an energy bin contains. 
+        This comes from dynamically generating the ccm axes from the requested ccm positions.
+        Once in a while at XCS it generates random ccm requests that aren't real but a shot or two make it in.
+        Using this method we can trim the fake ccm values.
+        
+        '''
+        
+        ccm_bins=getattr(run,'ccm_bins',elist_center)
+        ccm_energies=getattr(run,'ccm_energies',elist)
+        counts = np.bincount(bins)
+        trimmed_ccm=ccm_energies[counts[:-1]>120]
+        self.make_ccm_axis(run,ccm_energies)
+        
     def make_ccm_axis(self,run,energies):
         elist=energies
 #         addon = (elist[-1] - elist[-2])/2 # add on energy 
