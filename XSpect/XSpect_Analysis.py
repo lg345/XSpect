@@ -248,10 +248,11 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        #print(detector.shape)
+        #print(len(detector.shape))
         expected_length = len(run.time_bins)+1
-
-        if len(detector.shape) < 3:
+        if len(detector.shape) < 2:
+            reduced_array = np.zeros((expected_length))
+        elif len(detector.shape) < 3:
             reduced_array = np.zeros((expected_length, detector.shape[1]))
         elif len(detector.shape) == 3:
             reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
@@ -263,7 +264,7 @@ class SpectroscopyAnalysis:
         else:
             np.add.at(reduced_array, indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
-        run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
+        run.update_status('Detector %s binned in time into key: %s from detector shape: %s to reduced shape: %s'%(detector_key,detector_key+'_time_binned', detector.shape,reduced_array.shape) )
     def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
