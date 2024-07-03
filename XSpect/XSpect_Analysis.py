@@ -88,12 +88,14 @@ class spectroscopy_run:
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed. Time: %.02f seconds' % (end-start))
-    def load_run_key_delayed(self, keys, friendly_names):
+    def load_run_key_delayed(self, keys, friendly_names,transpose=False):
         start=time.time()
         fh= h5py.File(self.run_file, 'r')
         for key, name in zip(keys, friendly_names):
             try:
                 setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
+                if transpose:
+                    setattr(self, name, np.transpose(fh[name],axes=(1,2)))
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e.args[0])
             except MemoryError:
@@ -213,7 +215,10 @@ class SpectroscopyAnalysis:
             run.update_status(f"Purged key to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
-        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        if lxt_key==None:
+            run.delays = 0+ getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        else:
+            run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
@@ -243,10 +248,11 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        #print(detector.shape)
+        #print(len(detector.shape))
         expected_length = len(run.time_bins)+1
-
-        if len(detector.shape) < 3:
+        if len(detector.shape) < 2:
+            reduced_array = np.zeros((expected_length))
+        elif len(detector.shape) < 3:
             reduced_array = np.zeros((expected_length, detector.shape[1]))
         elif len(detector.shape) == 3:
             reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
@@ -258,7 +264,7 @@ class SpectroscopyAnalysis:
         else:
             np.add.at(reduced_array, indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
-        run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
+        run.update_status('Detector %s binned in time into key: %s from detector shape: %s to reduced shape: %s'%(detector_key,detector_key+'_time_binned', detector.shape,reduced_array.shape) )
     def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
@@ -421,7 +427,22 @@ class XESAnalysis(SpectroscopyAnalysis):
 
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
-        pass
+        pass;
+    def trim_ccm(self,run,threshold=120):
+        '''
+        Method to trim the ccm values for how many shots an energy bin contains. 
+        This comes from dynamically generating the ccm axes from the requested ccm positions.
+        Once in a while at XCS it generates random ccm requests that aren't real but a shot or two make it in.
+        Using this method we can trim the fake ccm values.
+        
+        '''
+        
+        ccm_bins=getattr(run,'ccm_bins',elist_center)
+        ccm_energies=getattr(run,'ccm_energies',elist)
+        counts = np.bincount(bins)
+        trimmed_ccm=ccm_energies[counts[:-1]>120]
+        self.make_ccm_axis(run,ccm_energies)
+        
     def make_ccm_axis(self,run,energies):
         elist=energies
 #         addon = (elist[-1] - elist[-2])/2 # add on energy 
