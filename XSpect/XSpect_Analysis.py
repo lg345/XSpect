@@ -49,7 +49,12 @@ class spectroscopy_run:
         self.verbose=verbose
         self.end_index=end_index
         self.start_index=start_index
-    
+
+    def get_scan_val(self):
+        with h5py.File(self.run_file, 'r') as fh:
+            self.scan_var=fh['scan/scan_variable']
+            
+        
     def update_status(self,update,):
         self.status.append(update)
         self.status_datetime.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -83,12 +88,14 @@ class spectroscopy_run:
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed. Time: %.02f seconds' % (end-start))
-    def load_run_key_delayed(self, keys, friendly_names):
+    def load_run_key_delayed(self, keys, friendly_names,transpose=False):
         start=time.time()
         fh= h5py.File(self.run_file, 'r')
         for key, name in zip(keys, friendly_names):
             try:
                 setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
+                if transpose:
+                    setattr(self, name, np.transpose(fh[name],axes=(1,2)))
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e.args[0])
             except MemoryError:
@@ -97,6 +104,10 @@ class spectroscopy_run:
         end=time.time()
         self.update_status('HDF5 import of keys completed kept as hdf5 dataset. Time: %.02f seconds' % (end-start))
         self.h5=fh
+    def load_sum_run_scattering(self,key):
+        with h5py.File(self.run_file, 'r') as fh:
+            setattr(self, 'scattering', np.nansum(np.nansum(fh[key][:,:,20:80],axis=1),axis=1))
+        
     def close_h5(self):
         self.h5.close()
         del self.h5
@@ -116,6 +127,22 @@ class spectroscopy_run:
 class SpectroscopyAnalysis:
     def __init__(self):
         pass
+    
+    def bin_uniques(self,run,key):
+        vals = getattr(run,key)
+        bins = np.unique(vals)
+        addon = (bins[-1] - bins[-2])/2 # add on energy 
+        bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
+        bins_center = np.empty_like(bins2)
+        for ii in np.arange(bins.shape[0]):
+            if ii == 0:
+                bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
+            else:
+                bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
+        bins_center[-1] = bins2[-1]
+
+        setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
+        setattr(run,'scanvar_bins',bins_center)
     
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         #filter_mode a is all shots. l is laser+x-ray shots.
@@ -188,7 +215,10 @@ class SpectroscopyAnalysis:
             run.update_status(f"Purged key to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
-        run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        if lxt_key==None:
+            run.delays = 0+ getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+        else:
+            run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
@@ -218,10 +248,11 @@ class SpectroscopyAnalysis:
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        #print(detector.shape)
+        #print(len(detector.shape))
         expected_length = len(run.time_bins)+1
-
-        if len(detector.shape) < 3:
+        if len(detector.shape) < 2:
+            reduced_array = np.zeros((expected_length))
+        elif len(detector.shape) < 3:
             reduced_array = np.zeros((expected_length, detector.shape[1]))
         elif len(detector.shape) == 3:
             reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
@@ -233,7 +264,7 @@ class SpectroscopyAnalysis:
         else:
             np.add.at(reduced_array, indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
-        run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
+        run.update_status('Detector %s binned in time into key: %s from detector shape: %s to reduced shape: %s'%(detector_key,detector_key+'_time_binned', detector.shape,reduced_array.shape) )
     def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
@@ -396,7 +427,22 @@ class XESAnalysis(SpectroscopyAnalysis):
 
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
-        pass
+        pass;
+    def trim_ccm(self,run,threshold=120):
+        '''
+        Method to trim the ccm values for how many shots an energy bin contains. 
+        This comes from dynamically generating the ccm axes from the requested ccm positions.
+        Once in a while at XCS it generates random ccm requests that aren't real but a shot or two make it in.
+        Using this method we can trim the fake ccm values.
+        
+        '''
+        
+        ccm_bins=getattr(run,'ccm_bins',elist_center)
+        ccm_energies=getattr(run,'ccm_energies',elist)
+        counts = np.bincount(bins)
+        trimmed_ccm=ccm_energies[counts[:-1]>120]
+        self.make_ccm_axis(run,ccm_energies)
+        
     def make_ccm_axis(self,run,energies):
         elist=energies
 #         addon = (elist[-1] - elist[-2])/2 # add on energy 
@@ -420,11 +466,11 @@ class XASAnalysis(SpectroscopyAnalysis):
     
         setattr(run,'ccm_bins',elist_center)
         setattr(run,'ccm_energies',elist)
-    def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=False):
+    def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=True):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.max(timing_indices)+1, np.max(ccm_indices) + 1))
+        reduced_array = np.zeros((np.shape(run.time_bins)[0]+1, np.shape(run.ccm_bins)[0]))
 #         reduced_array = np.zeros((run.time_bins.shape[0], run.ccm_bins.shape[0]))
         #for idx,i in enumerate(detector):
         #    reduced_array[timing_indices[idx],ccm_indices[idx]]=detector[idx]+reduced_array[timing_indices[idx],ccm_indices[idx]]
@@ -435,21 +481,27 @@ class XASAnalysis(SpectroscopyAnalysis):
         
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
         
-    def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False):
+    def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False, not_ccm=False):
         detector = getattr(run, detector_key)
+        
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros(np.max(ccm_indices) + 1)
+        if not_ccm:
+            reduced_array = np.zeros(np.max(ccm_indices)+1 )
+        else:
+            reduced_array = np.zeros(np.shape(run.ccm_bins)[0]) 
         np.add.at(reduced_array, ccm_indices, detector)
+       # reduced_array=reduced_array[:-1]
         setattr(run, detector_key+'_energy_binned', reduced_array)
         
         run.update_status('Detector %s binned in energy into key: %s'%(detector_key,detector_key+'_energy_binned') )
         
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices, average=False):
         detector = getattr(run, detector_key)
+        time_bins=run.time_bins
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros(np.max(timing_indices)+1)
+        reduced_array = np.zeros(np.shape(time_bins)[0]+1)
         np.add.at(reduced_array, timing_indices, detector)
-        reduced_array = reduced_array[:-1]
+        #reduced_array = reduced_array[:-1]
         setattr(run, detector_key+'_time_binned', reduced_array)
         
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
