@@ -750,6 +750,49 @@ class XESAnalysis(SpectroscopyAnalysis):
             #delattr(run, detector_key)
             #del run.detector_key
             run.update_status(f"Purged key to save room: {detector_key}")
+    def reduce_det_scanvar(self, run, detector_key, scanvar_key, scanvar_bins_key):
+        """
+        Reduce detector data by binning according to an arbitrary scan variable.
+
+        This method bins the detector data based on a specified scan variable and its corresponding bins. 
+        The result is stored in the `run` object under a new attribute.
+
+        Parameters
+        ----------
+        run : object
+            The spectroscopy run instance.
+        detector_key : str
+            The key corresponding to the detector data within the run object.
+        scanvar_key : str
+            The key corresponding to the scan variable indices.
+        scanvar_bins_key : str
+            The key corresponding to the scan variable bins.
+
+        Returns
+        -------
+        None
+            The reduced data is stored in the `run` object with the key formatted as `{detector_key}_scanvar_reduced`.
+        """
+    
+        detector = getattr(run, detector_key)
+        
+        scanvar_indices = getattr(run, scanvar_key)  # Shape: (4509,)
+        scanvar_bins=getattr(run, scanvar_bins_key)
+        
+        n_bins = len(scanvar_bins)  # Number of bins
+
+        # Initialize reduced_array with the correct shape (number of bins, 699, 50)
+        reduced_array = np.zeros((n_bins, detector.shape[1], detector.shape[2]))
+
+        # Iterate over the images and accumulate them into reduced_array based on timing_indices
+        for i in range(detector.shape[0]):
+            np.add.at(reduced_array, (scanvar_indices[i],), detector[i])
+
+        # Store the reduced_array in the object, replace 'key_name' with the actual key
+        setattr(run,  f"{detector_key}_scanvar_reduced", reduced_array)
+
+        # Update status
+        run.update_status(f'Detector binned in time into key: {detector_key}_scanvar_reduced')
 
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
