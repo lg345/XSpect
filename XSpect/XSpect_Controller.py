@@ -505,3 +505,29 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
         analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
         return f
+class ScanAnalysis_1D_XES(BatchAnalysis):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        pass
+
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run=run,verbose=True)
+        analysis=XESAnalysis()
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+        #f.ccm_bins=f.ccm
+        analysis.bin_uniques(f,'scan')
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'scan',['simultaneous','laser'])
+        analysis.separate_shots(f,'scan',['xray','laser'])
+        analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
+
+        analysis.reduce_det_scanvar(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
+        analysis.reduce_det_scanvar(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
+
+
+        return f
