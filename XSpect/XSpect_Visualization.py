@@ -68,6 +68,15 @@ class XESVisualization(SpectroscopyVisualization):
         xes_analysis.summed_laser_on_normalized=self.summed_laser_on_normalized
         xes_analysis.summed_laser_off_normalized=self.summed_laser_off_normalized
 
+    def combine_static_spectra(self,xes_analysis,xes_key):
+        xes=getattr(xes_analysis.analyzed_runs[0],xes_key)     
+        summed_laser_off=np.zeros_like(xes)       
+        for run in xes_analysis.analyzed_runs:       
+            summed_laser_off+=getattr(run,xes_key)
+        self.summed_xes=summed_laser_off
+
+
+           
     def plot_2d_difference_spectrum(self,xes_analysis):
         laser_on_spectrum=xes_analysis.summed_laser_on_normalized
         laser_off_spectrum=xes_analysis.summed_laser_off_normalized

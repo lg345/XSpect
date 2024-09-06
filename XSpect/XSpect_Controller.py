@@ -16,6 +16,7 @@ from XSpect.XSpect_Analysis import *
 from XSpect.XSpect_Analysis import spectroscopy_run
 from multiprocessing import Pool
 from tqdm import tqdm
+import warnings
 
 class BatchAnalysis:
     def __init__(self, verbose=False):
@@ -61,6 +62,9 @@ class BatchAnalysis:
     def set_key_aliases(self, keys=['tt/ttCorr', 'epics/lxt_ttc', 'enc/lasDelay', 'ipm4/sum', 'tt/AMPL', 'epix_2/ROI_0_area'],
                         names=['time_tool_correction', 'lxt_ttc', 'encoder', 'ipm', 'time_tool_ampl', 'epix']):
         self.update_status("Setting key aliases.")
+        if 'epix' in names:
+            warnings.warn('If you plan on using delayed key loading for the epix then please define key_epix and friendly_name_epix. And do not load it here for risk of OOM')
+        self.friendly_name_epix=['epix']
         self.keys = keys
         self.friendly_names = names
 
@@ -196,6 +200,7 @@ class XESBatchAnalysis(BatchAnalysis):
         self.start_index=0
         self.transpose=False
         self.lxt_key='lxt_ttc'
+        self.import_roi=None
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -275,8 +280,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.patch_pixels(f,'epix',axis=1)
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                           
-        analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff,banana=self.adu_cutoff)
-        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1']
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
+        analysis.reduce_detector_shots(f,'epix_ROI_1')
+        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed']
         f.purge_all_keys(keys_to_save)
         return f
   
@@ -293,7 +299,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         self.start_index=start_index
         f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
         f.load_run_keys(self.keys,self.friendly_names)
-        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
 
         analysis=XESAnalysis()
