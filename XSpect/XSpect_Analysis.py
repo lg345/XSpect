@@ -392,7 +392,15 @@ class SpectroscopyAnalysis:
         for detector_key in keys:
             setattr(run, detector_key, None)
             run.update_status(f"Purged key to save room: {detector_key}")
-            
+    
+    def reduce_detector_shots(self, run, detector_key,reduction_function=np.sum,  purge=True):
+        detector = getattr(run, detector_key)
+        reduced_data=reduction_function(detector,axis=0)
+        run.update_status(f"Reduced detector by shots: {detector_key} with number of shots: {np.shape(detector)}")
+        setattr(run, f"{detector_key}_summed", reduced_data)
+        if purge:
+            setattr(run, detector_key,None)
+            run.update_status(f"Purged key to save room: {detector_key}")
     
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True):
         """
