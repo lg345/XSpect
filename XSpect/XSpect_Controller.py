@@ -128,7 +128,7 @@ class BatchAnalysis:
         result_array = np.array(flat_list,dtype=object)
         self.run_shot_ranges=result_array
 
-    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False):
+    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
 
         
         self.update_status("Starting parallel analysis with shot ranges.")
@@ -143,14 +143,25 @@ class BatchAnalysis:
 
             def callback(result):
                 nonlocal pbar
+                if isinstance(result, dict) and "error" in result:
+                    self.update_status(f"Error in processing run {result['run']}: {result['error']}")
+                else:
+                    analyzed_runs.append(result)
                 pbar.update(1)
-                analyzed_runs.append(result)
+
+            def error_callback(e):
+                self.update_status(f"Parallel processing error: {str(e)}")
 
             for run_shot in run_shot_ranges:
                 run, shot_ranges = run_shot
-                pool.apply_async(self.primary_analysis_range, (experiment, run, shot_ranges, verbose), callback=callback)
+                pool.apply_async(self.primary_analysis_range, 
+                                 (experiment, run, shot_ranges, verbose, method), 
+                                 callback=callback, 
+                                 error_callback=error_callback)
+
             pool.close()
             pool.join()
+
         self.analyzed_runs = analyzed_runs
         analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
@@ -254,25 +265,19 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                 start_index=self.start_index
             except AttributeError:
                 start_index=0
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        self.end_index=end_index
-        self.start_index=start_index
         f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        #f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
-        f.load_run_keys(self.keys,self.friendly_names)
-        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
         analysis=XESAnalysis()
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         analysis.patch_pixels(f,'epix',axis=1)
-        # analysis.patch_pixels_1d(f,'epix')
-        # f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                           
-        analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff, reduction_axis=1)
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff,banana=self.adu_cutoff)
         keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1']
-        # f.purge_all_keys(keys_to_save)
-        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+        f.purge_all_keys(keys_to_save)
         return f
   
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -313,10 +318,17 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.purge_all_keys(keys_to_save)
         analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
-    def primary_analysis_range(self, experiment, run, shot_ranges, verbose=False):
+    def primary_analysis_range(self, experiment, run, shot_ranges, verbose=False, method=None):
+        try:
+            if method is None:
+                method = self.primary_analysis 
+            start, end = shot_ranges
+            return method(run=run, experiment=experiment, start_index=start, end_index=end, verbose=verbose)
+        except Exception as e:
+            # Return or log the exception with enough details
+            return {"error": str(e), "run": run, "shot_ranges": shot_ranges}
 
-        start, end = shot_ranges
-        return self.primary_analysis(run=run,experiment=experiment, start_index=start, end_index=end, verbose=verbose)
+
     
     def hit_find(self,experiment,run,verbose=False,start_index=None,end_index=None):
         if end_index==None:
