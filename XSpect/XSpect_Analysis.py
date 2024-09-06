@@ -163,10 +163,10 @@ class spectroscopy_run:
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
         end=time.time()
         self.update_status('HDF5 import of keys completed. Time: %.02f seconds' % (end-start))
-    def load_run_key_delayed(self, keys, friendly_names,transpose=False):
+    def load_run_key_delayed(self, keys, friendly_names, transpose=False, rois=None, combine=True):
         """
         Loads specified keys from the run file into memory without immediate conversion to numpy arrays. 
-        This is annoyingly important to minimize issues with OOM since it lets us load the key with a start and end index.
+        Supports applying multiple ROIs in one dimension that can be combined into a single mask or handled separately.
 
         Parameters
         ----------
@@ -176,22 +176,54 @@ class spectroscopy_run:
             Corresponding list of friendly names for the keys.
         transpose : bool, optional
             Flag to transpose the loaded data. Defaults to False.
+        rois : list of lists, optional
+            List of ROIs (regions of interest) as pixel ranges along one dimension (default is None).
+            Each ROI should be in the form [start_col, end_col].
+        combine : bool, optional
+            Whether to combine ROIs into a single mask. Defaults to True.
         """
-        start=time.time()
-        fh= h5py.File(self.run_file, 'r')
+        start = time.time()
+        fh = h5py.File(self.run_file, 'r')
+
         for key, name in zip(keys, friendly_names):
             try:
-                setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
+                # Load the data from the file for the given key
+                data = fh[key][self.start_index:self.end_index, :, :]
+
+                # Apply one-dimensional ROIs if specified
+                if rois is not None:
+                    if combine:
+                        # Combine multiple ROIs into a single mask
+                        mask = np.zeros(data.shape[2], dtype=bool)  # Mask along the third dimension (spatial)
+                        for roi in rois:
+                            start_col, end_col = roi
+                            mask[start_col:end_col] = True
+                        # Apply the mask to select the ROI from the third dimension
+                        data = data[:, :, mask]
+                    else:
+                        # Handle each ROI separately, storing the results as different attributes
+                        for idx, roi in enumerate(rois):
+                            start_col, end_col = roi
+                            roi_data = data[:, :, start_col:end_col]
+                            setattr(self, f"{name}_ROI_{idx+1}", roi_data)
+
+                setattr(self, name, data)
+
                 if transpose:
-                    setattr(self, name, np.transpose(fh[name],axes=(1,2)))
+                    setattr(self, name, np.transpose(data, axes=(1, 2)))
+
             except KeyError as e:
-                self.update_status('Key does not exist: %s' % e.args[0])
+                self.update_status(f'Key does not exist: {e.args[0]}')
             except MemoryError:
-                setattr(self, name, fh[key][self.start_index:self.end_index,:,:])
-                self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
-        end=time.time()
-        self.update_status('HDF5 import of keys completed kept as hdf5 dataset. Time: %.02f seconds' % (end-start))
-        self.h5=fh
+                setattr(self, name, fh[key][self.start_index:self.end_index, :, :])
+                self.update_status(f'Out of memory error while loading key: {key}. Not converted to np.array.')
+
+        end = time.time()
+        self.update_status(f'HDF5 import of keys completed. Time: {end - start:.02f} seconds')
+        self.h5 = fh
+
+
+
     def load_sum_run_scattering(self,key,low=20,high=80):
         """
         Sums the scattering data across the specified range.
