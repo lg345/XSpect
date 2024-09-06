@@ -17,6 +17,7 @@ from XSpect.XSpect_Analysis import spectroscopy_run
 from multiprocessing import Pool
 from tqdm import tqdm
 import warnings
+import psutil  
 
 class BatchAnalysis:
     def __init__(self, verbose=False):
@@ -132,15 +133,26 @@ class BatchAnalysis:
         result_array = np.array(flat_list,dtype=object)
         self.run_shot_ranges=result_array
 
-    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
 
-        
+
+
+    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
         self.update_status("Starting parallel analysis with shot ranges.")
         self.parse_run_shots(experiment, verbose)
         self.break_into_shot_ranges(increment)
 
         analyzed_runs = []
         total_runs = len(self.run_shot_ranges)
+
+        # Start timing the overall process
+        start_time = time.time()
+
+        # Start tracking I/O stats
+        io_before = psutil.disk_io_counters()
+        mem_before = psutil.virtual_memory().used
+
+        errors = []
+        total_tasks = 0
 
         with Pool(processes=cores) as pool, tqdm(total=total_runs, desc="Processing", unit="Shot_Batch") as pbar:
             run_shot_ranges = self.run_shot_ranges
@@ -149,12 +161,14 @@ class BatchAnalysis:
                 nonlocal pbar
                 if isinstance(result, dict) and "error" in result:
                     self.update_status(f"Error in processing run {result['run']}: {result['error']}")
+                    errors.append(result['error'])
                 else:
                     analyzed_runs.append(result)
                 pbar.update(1)
 
             def error_callback(e):
                 self.update_status(f"Parallel processing error: {str(e)}")
+                errors.append(str(e))
 
             for run_shot in run_shot_ranges:
                 run, shot_ranges = run_shot
@@ -170,6 +184,45 @@ class BatchAnalysis:
         analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
         self.update_status("Parallel analysis with shot ranges completed.")
+
+        # End timing the parallel section
+        parallel_end_time = time.time()
+
+        # End timing the overall process
+        end_time = time.time()
+
+        # Calculate I/O statistics
+        io_after = psutil.disk_io_counters()
+        read_bytes = io_after.read_bytes - io_before.read_bytes
+        write_bytes = io_after.write_bytes - io_before.write_bytes
+
+        mem_after = psutil.virtual_memory().used
+        memory_used = mem_after - mem_before
+
+        # Calculate useful statistics
+        total_time = end_time - start_time
+        parallel_time = parallel_end_time - start_time
+        time_per_run = parallel_time / total_runs if total_runs > 0 else 0
+        time_per_core = parallel_time / cores if cores > 0 else 0
+        runs_per_core = total_runs / cores if cores > 0 else 0
+
+        # Update status with statistics
+        self.update_status(f"Parallel analysis completed.")
+        self.update_status(f"Total time: {total_time:.2f} seconds.")
+        self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
+        self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
+        self.update_status(f"Time per core (on average): {time_per_core:.2f} seconds.")
+        self.update_status(f"Batches per core (on average): {runs_per_core:.2f}.")
+        self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
+        self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
+        self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
+
+        if errors:
+            self.update_status(f"Errors encountered: {len(errors)}")
+
+
+
+
 
 
 def analyze_single_run(args):
