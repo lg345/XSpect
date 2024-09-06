@@ -3,8 +3,8 @@
 # -- Project information
 
 project = 'XSpect'
-copyright = '2021, Graziella'
-author = 'Graziella'
+copyright = '2024'
+author = 'Leland Gee'
 
 release = '0.1'
 version = '0.1.0'
