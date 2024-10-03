@@ -254,6 +254,7 @@ class XESBatchAnalysis(BatchAnalysis):
         self.transpose=False
         self.lxt_key='lxt_ttc'
         self.import_roi=None
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -331,12 +332,15 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         analysis.patch_pixels(f,'epix',axis=1)
+        if self.angle!=0:
+            f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                           
+        analysis.reduce_detector_shots(f,'epix',purge=False)
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
         analysis.reduce_detector_shots(f,'epix_ROI_1')
-        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed']
-        f.purge_all_keys(keys_to_save)
+        #keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        f.purge_all_keys(self.keys_to_save)
         return f
   
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -359,7 +363,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         #analysis.patch_pixels(f,'epix',axis=1)
-        f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+        if self.angle!=0:
+            f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
         analysis.union_shots(f,'epix',['simultaneous','laser'])
