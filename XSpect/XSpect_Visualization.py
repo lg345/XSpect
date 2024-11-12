@@ -71,8 +71,10 @@ class XESVisualization(SpectroscopyVisualization):
     def combine_static_spectra(self,xes_analysis,xes_key):
         xes=getattr(xes_analysis.analyzed_runs[0],xes_key)     
         summed_laser_off=np.zeros_like(xes)       
-        for run in xes_analysis.analyzed_runs:       
-            summed_laser_off+=getattr(run,xes_key)
+        for run in xes_analysis.analyzed_runs: 
+            current_xes=getattr(run,xes_key)
+            if not np.isnan(current_xes).any():
+                summed_laser_off+=current_xes
         self.summed_xes=summed_laser_off
 
 
