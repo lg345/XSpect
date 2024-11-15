@@ -255,6 +255,7 @@ class XESBatchAnalysis(BatchAnalysis):
         self.lxt_key='lxt_ttc'
         self.import_roi=None
         self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        self.arbitrary_filter=False
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -328,6 +329,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         #f.load_run_keys(self.keys,self.friendly_names)
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
+        if self.arbitrary_filter:
+            f.set_arbitrary_filter()
         analysis=XESAnalysis()
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
@@ -335,7 +338,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         if self.angle!=0:
             f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
-            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                           
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
+        analysis.union_shots(f,'epix',['xray','xray'])
         analysis.reduce_detector_shots(f,'epix',purge=False)
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
         analysis.reduce_detector_shots(f,'epix_ROI_1')
