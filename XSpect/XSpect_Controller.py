@@ -339,7 +339,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
-        analysis.union_shots(f,'epix',['xray','xray'])
+        analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
         analysis.reduce_detector_shots(f,'epix',purge=False)
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
         analysis.reduce_detector_shots(f,'epix_ROI_1')
