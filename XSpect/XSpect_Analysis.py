@@ -110,7 +110,7 @@ class spectroscopy_run:
             self.scan_var=fh['scan/scan_variable']
             
         
-    def update_status(self,update,):
+    def update_status(self,update):
         """
         Updates the status log for the run and appends it to the objects status/datetime attibutes.
         If verbose then it prints it.
@@ -138,14 +138,8 @@ class spectroscopy_run:
             
         self.run_shots={'Total':self.total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
         self.update_status('Obtained shot properties')
-    def load_arbitrary_filter(self,file):
-        with h5py.File(self.run_file, 'a') as hf:
-            if 'arbitrary_filter' in hf:
-                del hf['arbitrary_filter']
-            insert_filter = np.zeros(f.run_shots['Total'])
-            insert_filter[arbfil] = 1
-            hf.create_dataset('arbitrary_filter', data=insert_filter)
     def set_arbitrary_filter(self,key='arbitrary_filter'):
+        self.verbose=False
         with h5py.File(self.run_file, 'r') as fh:
             self.arbitrary_filter = fh[key][self.start_index:self.end_index]
     
@@ -596,6 +590,8 @@ class SpectroscopyAnalysis:
         """
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
+
+
     def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         """
         EPIX detector pixel patching.
@@ -642,6 +638,7 @@ class SpectroscopyAnalysis:
             data[pixel, :] = interp(pixel)
         setattr(run,detector_key,data)
         run.update_status('Detector %s pixel %d patched. Old value.'%(detector_key, pixel ))
+    
     def patch_pixels_1d(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
         """
         Patches multiple pixels in 1D detector data.

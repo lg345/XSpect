@@ -114,25 +114,26 @@ class BatchAnalysis:
     def break_into_shot_ranges(self, increment):
         self.update_status(f"Breaking into shot ranges with increment {increment}.")
         run_shot_ranges_dict = {}
+
         for run, total_shots in self.run_shots.items():
             run_shot_ranges = []
             min_index = 0
-            if self.end_index is not None and self.end_index!=-1:
-                total_shots=min(self.end_index, total_shots)
+
+            if self.end_index is not None and self.end_index != -1:
+                total_shots = min(self.end_index + 1, total_shots)  # Including final shot
+
             while min_index < total_shots:
-                max_index = min_index + increment - 1 if min_index + increment - 1 < total_shots else total_shots - 1
+                max_index = min(min_index + increment - 1, total_shots - 1)  # Calculate max_index
                 run_shot_ranges.append((min_index, max_index))
-                min_index += increment
+                min_index = max_index + 1  # Move to the next index right after current max_index
+
             run_shot_ranges_dict[run] = run_shot_ranges
+
         self.run_shot_ranges = run_shot_ranges_dict
         self.update_status("Shot ranges broken.")
-        # Convert dictionary items to a list of tuples
 
         flat_list = [(run, (shot_range[0], shot_range[1])) for run, shot_ranges in run_shot_ranges_dict.items() for shot_range in shot_ranges]
-
-        result_array = np.array(flat_list,dtype=object)
-        self.run_shot_ranges=result_array
-
+        self.run_shot_ranges = np.array(flat_list, dtype=object)
 
 
 
@@ -227,7 +228,7 @@ class BatchAnalysis:
 
 def analyze_single_run(args):
     obj,experiment, run, shot_ranges, verbose = args
-    return obj.primary_analysis_range(experiment, run, shot_ranges, verbose)
+    return obj.primary_analysis_range(expFeriment, run, shot_ranges, verbose)
 
 
 
@@ -249,7 +250,7 @@ class XESBatchAnalysis(BatchAnalysis):
         self.key_epix=['epix_2/ROI_0_area']
         self.friendly_name_epix=['epix']
         self.angle=0.0
-        self.end_index=-1
+        self.end_index=None
         self.start_index=0
         self.transpose=False
         self.lxt_key='lxt_ttc'
@@ -296,7 +297,20 @@ class XESBatchAnalysis(BatchAnalysis):
 class XESBatchAnalysisRotation(XESBatchAnalysis):
     def __init__(self):
         super().__init__()
-    
+    def append_arbitrary_filtering(self,xes_experiment,verbose=False,basepath='.'):
+        for run in self.runs:
+            f=spectroscopy_run(xes_experiment,run,verbose=verbose,start_index=0,end_index=None)
+            f.run_file
+            f.get_run_shot_properties()
+            target_file=f'{basepath}/{run:03d}_indices.txt'
+            arbfil=np.loadtxt(target_file,dtype=int)
+            with h5py.File(f.run_file, 'a') as hf:
+                if 'arbitrary_filter' in hf:
+                    del hf['arbitrary_filter']
+                insert_filter = np.zeros(f.total_shots)
+                insert_filter[arbfil] = 1
+                hf.create_dataset('arbitrary_filter', data=insert_filter)
+                self.update_status(f'Arbitrary filter appended to hdf5 file: {f.run_file} using {target_file}')
     def primary_analysis_static_parallel_loop(self, cores, experiment, verbose=False):
         self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
         pool = Pool(processes=cores)
@@ -329,19 +343,25 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         #f.load_run_keys(self.keys,self.friendly_names)
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
+        analysis=XESAnalysis()
         if self.arbitrary_filter:
             f.set_arbitrary_filter()
-        analysis=XESAnalysis()
+            analysis.union_shots(f,'epix',['xray','arbitrary_filter'],new_key=False)
+        else:
+            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
+
         analysis.pixels_to_patch=self.pixels_to_patch
+        
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
-        analysis.patch_pixels(f,'epix',axis=1)
+        analysis.patch_pixels(f,'epix',axis=1,mode='average')
         if self.angle!=0:
             f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
-        analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
+
         analysis.reduce_detector_shots(f,'epix',purge=False)
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
+
         analysis.reduce_detector_shots(f,'epix_ROI_1')
         #keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
         f.purge_all_keys(self.keys_to_save)
