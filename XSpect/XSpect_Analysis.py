@@ -71,7 +71,7 @@ class spectroscopy_experiment(experiment):
 
 class spectroscopy_run:
     """
-    A class to represent a run within a spectroscopy experiment. Not and LCLS run. 
+    A class to represent a run within a spectroscopy experiment. Not an LCLS run. 
     """
     def __init__(self,spec_experiment,run,verbose=False,end_index=-1,start_index=0):
         """
@@ -138,6 +138,16 @@ class spectroscopy_run:
             
         self.run_shots={'Total':self.total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
         self.update_status('Obtained shot properties')
+    def load_arbitrary_filter(self,file):
+        with h5py.File(self.run_file, 'a') as hf:
+            if 'arbitrary_filter' in hf:
+                del hf['arbitrary_filter']
+            insert_filter = np.zeros(f.run_shots['Total'])
+            insert_filter[arbfil] = 1
+            hf.create_dataset('arbitrary_filter', data=insert_filter)
+    def set_arbitrary_filter(self,key='arbitrary_filter'):
+        with h5py.File(self.run_file, 'r') as fh:
+            self.arbitrary_filter = fh[key][self.start_index:self.end_index]
     
     def load_run_keys(self, keys, friendly_names):
         """
@@ -474,7 +484,7 @@ class SpectroscopyAnalysis:
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
-    def union_shots(self, run, detector_key, filter_keys):
+    def union_shots(self, run, detector_key, filter_keys,new_key=True):
         """
         Combines shots across multiple filters into a single array. 
         So union_shots(f,'timing_bin_indices',['simultaneous','laser'])
@@ -496,8 +506,12 @@ class SpectroscopyAnalysis:
         else:
             mask = getattr(run, filter_keys)
         filtered_detector = detector[mask]
-        setattr(run, detector_key + '_' + '_'.join(filter_keys), filtered_detector)
-        run.update_status('Shots combined for detector %s on filters: %s and %s into %s'%(detector_key, filter_keys[0],filter_keys[1],detector_key + '_' + '_'.join(filter_keys)))
+        if new_key:
+            target_key=detector_key + '_' + '_'.join(filter_keys)
+        else:
+            target_key=detector_key
+        setattr(run, target_key, filtered_detector)
+        run.update_status('Shots combined for detector %s on filters: %s and %s into %s'%(detector_key, filter_keys[0],filter_keys[1],target_key))
         
     def separate_shots(self, run, detector_key, filter_keys):
         """
