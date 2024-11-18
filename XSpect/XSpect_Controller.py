@@ -404,8 +404,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
         analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
         analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois,adu_cutoff=self.adu_cutoff)
-        analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois,adu_cutoff=self.adu_cutoff)
+        analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
+        analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
         analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
         f.purge_all_keys(keys_to_save)
