@@ -71,7 +71,7 @@ class spectroscopy_experiment(experiment):
 
 class spectroscopy_run:
     """
-    A class to represent a run within a spectroscopy experiment. Not and LCLS run. 
+    A class to represent a run within a spectroscopy experiment. Not an LCLS run. 
     """
     def __init__(self,spec_experiment,run,verbose=False,end_index=-1,start_index=0):
         """
@@ -110,7 +110,7 @@ class spectroscopy_run:
             self.scan_var=fh['scan/scan_variable']
             
         
-    def update_status(self,update,):
+    def update_status(self,update):
         """
         Updates the status log for the run and appends it to the objects status/datetime attibutes.
         If verbose then it prints it.
@@ -138,6 +138,10 @@ class spectroscopy_run:
             
         self.run_shots={'Total':self.total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
         self.update_status('Obtained shot properties')
+    def set_arbitrary_filter(self,key='arbitrary_filter'):
+        self.verbose=False
+        with h5py.File(self.run_file, 'r') as fh:
+            self.arbitrary_filter = fh[key][self.start_index:self.end_index]
     
     def load_run_keys(self, keys, friendly_names):
         """
@@ -393,11 +397,15 @@ class SpectroscopyAnalysis:
             setattr(run, detector_key, None)
             run.update_status(f"Purged key to save room: {detector_key}")
     
-    def reduce_detector_shots(self, run, detector_key,reduction_function=np.sum,  purge=True):
+    def reduce_detector_shots(self, run, detector_key,reduction_function=np.sum,  purge=True,new_key=False):
         detector = getattr(run, detector_key)
         reduced_data=reduction_function(detector,axis=0)
         run.update_status(f"Reduced detector by shots: {detector_key} with number of shots: {np.shape(detector)}")
-        setattr(run, f"{detector_key}_summed", reduced_data)
+        if new_key:
+            target_key=f"{detector_key}_summed"
+        else:
+            target_key=detector_key
+        setattr(run, target_key, reduced_data)
         if purge:
             setattr(run, detector_key,None)
             run.update_status(f"Purged key to save room: {detector_key}")
@@ -427,11 +435,16 @@ class SpectroscopyAnalysis:
         if combine:
             
             roi_combined = [rois[0][0], rois[-1][1]]  # Combined ROI spanning the first and last ROI
-            mask = np.zeros(detector.shape[2], dtype=bool)
+            mask = np.zeros(detector.shape[-1], dtype=bool)
             for roi in rois:
                 mask[roi[0]:roi[1]] = True
-            masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
-            reduced_data = reduction_function(masked_data, axis=2)
+            if detector.ndim==3:
+                masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
+            elif detector.ndim==2:
+                masked_data = detector[:, mask]
+            elif detector.ndim==1:
+                masked_data = detector[mask]
+            reduced_data = reduction_function(masked_data, axis=-1)
             roi_indices = ', '.join([f"{roi[0]}-{roi[1]}" for roi in rois])
             run.update_status(f"Spatially reduced detector: {detector_key} with combined ROI indices: {roi_indices}")
             setattr(run, f"{detector_key}_ROI_1", reduced_data)
@@ -448,7 +461,7 @@ class SpectroscopyAnalysis:
             setattr(run, detector_key,None)
             #delattr(run, detector_key)
             #del run.detector_key
-            run.update_status(f"Purged key to save room: {detector_key}")
+            run.update_status(f"Purged key after spatial reduction to save room: {detector_key}")
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
         """
@@ -474,7 +487,7 @@ class SpectroscopyAnalysis:
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
-    def union_shots(self, run, detector_key, filter_keys):
+    def union_shots(self, run, detector_key, filter_keys,new_key=True):
         """
         Combines shots across multiple filters into a single array. 
         So union_shots(f,'timing_bin_indices',['simultaneous','laser'])
@@ -496,8 +509,12 @@ class SpectroscopyAnalysis:
         else:
             mask = getattr(run, filter_keys)
         filtered_detector = detector[mask]
-        setattr(run, detector_key + '_' + '_'.join(filter_keys), filtered_detector)
-        run.update_status('Shots combined for detector %s on filters: %s and %s into %s'%(detector_key, filter_keys[0],filter_keys[1],detector_key + '_' + '_'.join(filter_keys)))
+        if new_key:
+            target_key=detector_key + '_' + '_'.join(filter_keys)
+        else:
+            target_key=detector_key
+        setattr(run, target_key, filtered_detector)
+        run.update_status('Shots combined for detector %s on filters: %s and %s into %s'%(detector_key, filter_keys[0],filter_keys[1],target_key))
         
     def separate_shots(self, run, detector_key, filter_keys):
         """
@@ -542,7 +559,6 @@ class SpectroscopyAnalysis:
         """
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        #print(len(detector.shape))
         expected_length = len(run.time_bins)+1
         if len(detector.shape) < 2:
             reduced_array = np.zeros((expected_length))
@@ -582,7 +598,9 @@ class SpectroscopyAnalysis:
         """
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
-    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
+
+
+    def patch_pixel(self, run, detector_key, pixel, mode='average', patch_range=4, deg=1, poly_range=6, axis=1):
         """
         EPIX detector pixel patching.
         TODO: extend to patch regions instead of per pixel.
@@ -593,9 +611,9 @@ class SpectroscopyAnalysis:
         pixel : integer
             Pixel point to be patched
         mode : string
-            Determined which mode to use for patching the pixel. Averaging works well.
+            Determines which mode to use for patching the pixel. Averaging works well.
         patch_range : integer
-            pixels away from the pixel to be patched to be used for patching. Needed if multiple pixels in a row are an issue.
+            Pixels away from the pixel to be patched to be used for patching. Needed if multiple pixels in a row are an issue.
         deg : integer
             Degree of polynomial if polynomial patching is used.
         poly_range : integer
@@ -606,28 +624,63 @@ class SpectroscopyAnalysis:
             The original data with the new patch values.
         """
         data = getattr(run, detector_key)
-        if mode == 'average':
-            neighbor_values = data[:, pixel - patch_range:pixel + patch_range + 1, :]
-            new_val=np.sum(neighbor_values, axis=1) / neighbor_values.shape[1]
 
-            if axis==1:
-                data[:, pixel, :] = new_val
-            elif axis==2:
-                data[:,:,pixel]=new_val
-        elif mode == 'polynomial':
-            patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1, 1)
+        def get_neighbor_values(data, pixel, patch_range, axis):
+            axis_slice = [slice(None)] * data.ndim
+            start_index = max(pixel - patch_range, 0)
+            end_index = min(pixel + patch_range + 1, data.shape[axis])
+            axis_slice[axis] = slice(start_index, end_index)
+            return data[tuple(axis_slice)]
+
+        def patch_value_average(data, pixel, patch_range, axis):
+            neighbor_values = get_neighbor_values(data, pixel, patch_range, axis)
+            neighbor_values = np.moveaxis(neighbor_values, axis, 0)
+            new_val = np.mean(neighbor_values, axis=0)
+            return new_val
+
+        def patch_value_polynomial(data, pixel, patch_range, poly_range, deg, axis):
+            patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1)
             patch_range_weights = np.ones(len(patch_x))
-            patch_range_weights[pixel - patch_range - poly_range:pixel + patch_range + poly_range] = 0.001
-            coeffs = np.polyfit(patch_x, data[pixel - patch_range - poly_range:pixel + patch_range + poly_range + 1, :], deg,
-                                w=patch_range_weights)
-            data[pixel, :] = np.polyval(coeffs, pixel)
+            patch_range_weights[patch_range:-patch_range] = 0.001
+
+            neighbor_values = get_neighbor_values(data, pixel, patch_range + poly_range, axis)
+            neighbor_values = np.moveaxis(neighbor_values, axis, 0)
+
+            new_vals = []
+            for idx in range(neighbor_values.shape[1]): 
+                ys = neighbor_values[:, idx]
+                coeffs = np.polyfit(patch_x, ys, deg, w=patch_range_weights)
+                new_vals.append(np.polyval(coeffs, pixel))
+            return np.array(new_vals)
+
+        def patch_value_interpolate(data, pixel, patch_range, poly_range, axis):
+            patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1)
+            neighbor_values = get_neighbor_values(data, pixel, patch_range + poly_range, axis)
+            neighbor_values = np.moveaxis(neighbor_values, axis, 0)
+
+            new_vals = []
+            for idx in range(neighbor_values.shape[1]):
+                ys = neighbor_values[:, idx]
+                interp_func = interp1d(patch_x, ys, kind='quadratic')
+                new_vals.append(interp_func(pixel))
+            return np.array(new_vals)
+
+        if mode == 'average':
+            new_val = patch_value_average(data, pixel, patch_range, axis)
+        elif mode == 'polynomial':
+            new_val = patch_value_polynomial(data, pixel, patch_range, poly_range, deg, axis)
         elif mode == 'interpolate':
-            patch_x = np.arange(pixel - patch_range - poly_range, pixel + patch_range + poly_range + 1, 1)
-            interp = interp1d(patch_x, data[pixel - patch_range - poly_range:pixel + patch_range + poly_range + 1, :],
-                              kind='quadratic')
-            data[pixel, :] = interp(pixel)
-        setattr(run,detector_key,data)
-        run.update_status('Detector %s pixel %d patched. Old value.'%(detector_key, pixel ))
+            new_val = patch_value_interpolate(data, pixel, patch_range, poly_range, axis)
+        else:
+            raise ValueError(f"Unsupported mode: {mode}")
+
+        patch_slice = [slice(None)] * data.ndim
+        patch_slice[axis] = pixel
+        data[tuple(patch_slice)] = new_val
+
+        setattr(run, detector_key, data)
+        run.update_status(f"Detector {detector_key} pixel {pixel} patched. Old value.")
+    
     def patch_pixels_1d(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6):
         """
         Patches multiple pixels in 1D detector data.
@@ -689,7 +742,7 @@ class SpectroscopyAnalysis:
                               kind='quadratic')
             data[pixel, :] = interp(pixel)
         setattr(run,detector_key,data)
-        run.update_status('Detector %s pixel %d patched.'%(detector_key, pixel ))
+        run.update_status('Detector %s pixel %d patched in mode %s'%(detector_key, pixel,mode ))
         
 
 
@@ -739,57 +792,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         
         setattr(run,self.xes_line+'_energy',xaxis[::-1])
         run.update_status('XES energy axis generated for %s'%(self.xes_line))
-    def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True,adu_cutoff=3.0):
-        """
-        Reduce spatial dimensions of detector data by combining or applying reduction functions over regions of interest (ROIs).
 
-        Parameters
-        ----------
-        run : object
-            The spectroscopy run instance.
-        detector_key : str
-            The key corresponding to the detector data.
-        shot_range : list of int, optional
-            The range of shots to consider for reduction (default is [0, None]).
-        rois : list of lists of int, optional
-            The regions of interest for spatial reduction (default is [[0, None]]).
-        reduction_function : function, optional
-            The function to use for reduction (default is np.sum).
-        purge : bool, optional
-            Whether to purge the original detector data after reduction (default is True).
-        combine : bool, optional
-            Whether to combine ROIs into a single reduced dataset (default is True).
-        adu_cutoff : float, optional
-            The ADU cutoff value for filtering (default is 3.0).
-        """
-        detector = getattr(run, detector_key)
-        if combine:
-            
-            roi_combined = [rois[0][0], rois[-1][1]]  # Combined ROI spanning the first and last ROI
-            mask = np.zeros(detector.shape[2], dtype=bool)
-            for roi in rois:
-                mask[roi[0]:roi[1]] = True
-            masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
-            #masked_data = masked_data * (masked_data > adu_cutoff)
-            #Note the adu filtering should be handled at the controller level
-            reduced_data = reduction_function(masked_data, axis=2)
-            roi_indices = ', '.join([f"{roi[0]}-{roi[1]}" for roi in rois])
-            run.update_status(f"Spatially reduced detector: {detector_key} with combined ROI indices: {roi_indices}")
-            setattr(run, f"{detector_key}_ROI_1", reduced_data)
-        else:
-            for idx, roi in enumerate(rois):
-                data_chunk = detector[shot_range[0]:shot_range[1], roi[0]:roi[1]]
-                reduced_data = reduction_function(data_chunk, **kwargs)
-            if roi[1] is None:
-                roi[1] = detector.shape[1] - 1
-                run.update_status(f"Spatially reduced detector: {detector_key} with ROI: {roi[0]}, {roi[1]}")
-                setattr(run, f"{detector_key}_ROI_{idx+1}", reduced_data)
-        if purge:
-            #pass
-            setattr(run, detector_key,None)
-            #delattr(run, detector_key)
-            #del run.detector_key
-            run.update_status(f"Purged key to save room: {detector_key}")
     def reduce_det_scanvar(self, run, detector_key, scanvar_key, scanvar_bins_key):
         """
         Reduce detector data by binning according to an arbitrary scan variable.
