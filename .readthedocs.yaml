@@ -29,6 +29,3 @@ sphinx:
 python:
     install:
     - requirements: docs/requirements.txt
-    # Install python packages before building the docs with sphinx
-    - method: pip
-      path: ./XSpect/
