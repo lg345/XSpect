@@ -4,5 +4,5 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "XSpecT"
-authors = [{name = "test", email = "test"}]
+authors = [{name = "test", email = "test@test"}]
 dynamic = ["version", "description"]
