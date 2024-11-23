@@ -2,7 +2,7 @@ import numpy as np
 import scipy
 import matplotlib.pyplot as plt
 import time
-import psana as ps
+#import psana as ps
 
 width = 1.5
 length = 5

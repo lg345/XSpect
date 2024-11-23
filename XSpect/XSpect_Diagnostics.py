@@ -21,7 +21,7 @@ plt.rcParams['xtick.direction'] = 'in'
 plt.rcParams['ytick.direction'] = 'in'
 
 # from XSpect.XSpect_Analysis import *
-import psana as ps
+#import psana as ps
 
 class plotting:
     def __init__(self):
