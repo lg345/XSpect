@@ -13,6 +13,7 @@ Documentation
 --------------------
 
 Detail documentation of the code can be found here:
+
 .. toctree::
    :maxdepth: 2
 
