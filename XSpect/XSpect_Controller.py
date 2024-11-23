@@ -1,5 +1,5 @@
 import h5py
-# import psana
+import psana
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
@@ -17,8 +17,7 @@ from XSpect.XSpect_Analysis import spectroscopy_run
 from multiprocessing import Pool
 from tqdm import tqdm
 import warnings
-import psutil
-
+import psutil  
 
 class BatchAnalysis:
     def __init__(self, verbose=False):
@@ -35,8 +34,7 @@ class BatchAnalysis:
 
     def update_status(self, update):
         self.status.append(update)
-        self.status_datetime.append(
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        self.status_datetime.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         if self.verbose:
             print(update)
 
@@ -57,37 +55,30 @@ class BatchAnalysis:
         self.runs = runs
 
     def add_filter(self, shot_type, filter_key, threshold):
-        self.update_status(f"Adding filter: Shot Type={shot_type}, Filter Key={
-                           filter_key}, Threshold={threshold}")
+        self.update_status(f"Adding filter: Shot Type={shot_type}, Filter Key={filter_key}, Threshold={threshold}")
         if shot_type not in ['xray', 'laser', 'simultaneous']:
-            raise ValueError(
-                'Only options for shot type are xray, laser, or simultaneous.')
-        self.filters.append(
-            {'FilterType': shot_type, 'FilterKey': filter_key, 'FilterThreshold': threshold})
+            raise ValueError('Only options for shot type are xray, laser, or simultaneous.')
+        self.filters.append({'FilterType': shot_type, 'FilterKey': filter_key, 'FilterThreshold': threshold})
 
     def set_key_aliases(self, keys=['tt/ttCorr', 'epics/lxt_ttc', 'enc/lasDelay', 'ipm4/sum', 'tt/AMPL', 'epix_2/ROI_0_area'],
                         names=['time_tool_correction', 'lxt_ttc', 'encoder', 'ipm', 'time_tool_ampl', 'epix']):
         self.update_status("Setting key aliases.")
         if 'epix' in names:
-            warnings.warn(
-                'If you plan on using delayed key loading for the epix then please define key_epix and friendly_name_epix. And do not load it here for risk of OOM')
-        self.friendly_name_epix = ['epix']
+            warnings.warn('If you plan on using delayed key loading for the epix then please define key_epix and friendly_name_epix. And do not load it here for risk of OOM')
+        self.friendly_name_epix=['epix']
         self.keys = keys
         self.friendly_names = names
 
     def primary_analysis_loop(self, experiment, verbose=False):
-        self.update_status(f"Starting primary analysis loop with experiment={
-                           experiment}, verbose={verbose}.")
+        self.update_status(f"Starting primary analysis loop with experiment={experiment}, verbose={verbose}.")
         analyzed_runs = []
         for run in self.runs:
-            analyzed_runs.append(
-                self.primary_analysis(experiment, run, verbose))
+            analyzed_runs.append(self.primary_analysis(experiment, run, verbose))
         self.analyzed_runs = analyzed_runs
         self.update_status("Primary analysis loop completed.")
 
     def primary_analysis_parallel_loop(self, cores, experiment, verbose=False):
-        self.update_status(f"Starting parallel analysis loop with cores={
-                           cores}, experiment={experiment}, verbose={verbose}.")
+        self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
         pool = Pool(processes=cores)
         analyzed_runs = []
 
@@ -102,29 +93,26 @@ class BatchAnalysis:
         pool.close()
         pool.join()
 
-        analyzed_runs = [analyzed_run for analyzed_run in sorted(
-            analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
         self.update_status("Parallel analysis loop completed.")
+        
 
     def primary_analysis(self):
-        raise AttributeError(
-            'The primary_analysis must be implemented by the child classes.')
+        raise AttributeError('The primary_analysis must be implemented by the child classes.')
 
     def parse_run_shots(self, experiment, verbose=False):
         self.update_status("Parsing run shots.")
         run_shots_dict = {}
         for run in self.runs:
-            f = spectroscopy_run(
-                experiment, run, verbose=verbose, end_index=self.end_index)
+            f = spectroscopy_run(experiment, run, verbose=verbose, end_index=self.end_index)
             f.get_run_shot_properties()
             run_shots_dict[run] = f.total_shots
         self.run_shots = run_shots_dict
         self.update_status("Run shots parsed.")
 
     def break_into_shot_ranges(self, increment):
-        self.update_status(
-            f"Breaking into shot ranges with increment {increment}.")
+        self.update_status(f"Breaking into shot ranges with increment {increment}.")
         run_shot_ranges_dict = {}
 
         for run, total_shots in self.run_shots.items():
@@ -132,12 +120,10 @@ class BatchAnalysis:
             min_index = 0
 
             if self.end_index is not None and self.end_index != -1:
-                # Including final shot
-                total_shots = min(self.end_index + 1, total_shots)
+                total_shots = min(self.end_index + 1, total_shots)  # Including final shot
 
             while min_index < total_shots:
-                max_index = min(min_index + increment - 1,
-                                total_shots - 1)  # Calculate max_index
+                max_index = min(min_index + increment - 1, total_shots - 1)  # Calculate max_index
                 run_shot_ranges.append((min_index, max_index))
                 min_index = max_index + 1  # Move to the next index right after current max_index
 
@@ -146,9 +132,10 @@ class BatchAnalysis:
         self.run_shot_ranges = run_shot_ranges_dict
         self.update_status("Shot ranges broken.")
 
-        flat_list = [(run, (shot_range[0], shot_range[1])) for run,
-                     shot_ranges in run_shot_ranges_dict.items() for shot_range in shot_ranges]
+        flat_list = [(run, (shot_range[0], shot_range[1])) for run, shot_ranges in run_shot_ranges_dict.items() for shot_range in shot_ranges]
         self.run_shot_ranges = np.array(flat_list, dtype=object)
+
+
 
     def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
         self.update_status("Starting parallel analysis with shot ranges.")
@@ -174,8 +161,7 @@ class BatchAnalysis:
             def callback(result):
                 nonlocal pbar
                 if isinstance(result, dict) and "error" in result:
-                    self.update_status(f"Error in processing run {
-                                       result['run']}: {result['error']}")
+                    self.update_status(f"Error in processing run {result['run']}: {result['error']}")
                     errors.append(result['error'])
                 else:
                     analyzed_runs.append(result)
@@ -187,17 +173,16 @@ class BatchAnalysis:
 
             for run_shot in run_shot_ranges:
                 run, shot_ranges = run_shot
-                pool.apply_async(self.primary_analysis_range,
-                                 (experiment, run, shot_ranges, verbose, method),
-                                 callback=callback,
+                pool.apply_async(self.primary_analysis_range, 
+                                 (experiment, run, shot_ranges, verbose, method), 
+                                 callback=callback, 
                                  error_callback=error_callback)
 
             pool.close()
             pool.join()
 
         self.analyzed_runs = analyzed_runs
-        analyzed_runs = [analyzed_run for analyzed_run in sorted(
-            analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
         self.update_status("Parallel analysis with shot ranges completed.")
 
@@ -225,14 +210,10 @@ class BatchAnalysis:
         # Update status with statistics
         self.update_status(f"Parallel analysis completed.")
         self.update_status(f"Total time: {total_time:.2f} seconds.")
-        self.update_status(f"Parallel time (processing): {
-                           parallel_time:.2f} seconds.")
-        self.update_status(f"Time per batch (on average): {
-                           time_per_run:.2f} seconds.")
-        self.update_status(f"Time per core (on average): {
-                           time_per_core:.2f} seconds.")
-        self.update_status(f"Batches per core (on average): {
-                           runs_per_core:.2f}.")
+        self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
+        self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
+        self.update_status(f"Time per core (on average): {time_per_core:.2f} seconds.")
+        self.update_status(f"Batches per core (on average): {runs_per_core:.2f}.")
         self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
@@ -241,108 +222,98 @@ class BatchAnalysis:
             self.update_status(f"Errors encountered: {len(errors)}")
 
 
+
+
+
+
 def analyze_single_run(args):
-    obj, experiment, run, shot_ranges, verbose = args
+    obj,experiment, run, shot_ranges, verbose = args
     return obj.primary_analysis_range(expFeriment, run, shot_ranges, verbose)
+
 
 
 class XESBatchAnalysis(BatchAnalysis):
     def __init__(self):
         super().__init__()
-        self.xes_line = 'kbeta'
-        self.pixels_to_patch = [351, 352, 529, 530, 531]
-        self.crystal_detector_distance = 50.6
-        self.crystal_d_space = 0.895
-        self.crystal_radius = 250
-        self.adu_cutoff = 3.0
-        self.rois = [[0, None]]
-        self.mintime = -2.0
-        self.maxtime = 10.0
-        self.numpoints = 240
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        self.filters = []
-        self.key_epix = ['epix_2/ROI_0_area']
-        self.friendly_name_epix = ['epix']
-        self.angle = 0.0
-        self.end_index = None
-        self.start_index = 0
-        self.transpose = False
-        self.lxt_key = 'lxt_ttc'
-        self.import_roi = None
-        self.keys_to_save = ['start_index', 'end_index', 'run_file', 'run_number',
-                             'verbose', 'status', 'status_datetime', 'epix_ROI_1_summed', 'epix_summed']
-        self.patch_mode = 'average'
-        self.arbitrary_filter = False
-
-    def primary_analysis(self, experiment, run, verbose=False, start_index=None, end_index=None):
-        if end_index == None:
-            end_index = self.end_index
-        if start_index == None:
+        self.xes_line='kbeta'
+        self.pixels_to_patch=[351,352,529,530,531]
+        self.crystal_detector_distance=50.6
+        self.crystal_d_space=0.895
+        self.crystal_radius=250
+        self.adu_cutoff=3.0
+        self.rois=[[0,None]]
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+        self.key_epix=['epix_2/ROI_0_area']
+        self.friendly_name_epix=['epix']
+        self.angle=0.0
+        self.end_index=None
+        self.start_index=0
+        self.transpose=False
+        self.lxt_key='lxt_ttc'
+        self.import_roi=None
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        self.patch_mode='average'
+        self.arbitrary_filter=False
+ 
+    
+    def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
             try:
-                start_index = self.start_index
+                start_index=self.start_index
             except AttributeError:
-                start_index = 0
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        f = spectroscopy_run(experiment, run, verbose=verbose,
-                             start_index=start_index, end_index=end_index)
-        f.load_run_keys(self.keys, self.friendly_names)
-        f.load_run_key_delayed(self.key_epix, self.friendly_name_epix)
+                start_index=0
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
         f.get_run_shot_properties()
-        analysis = XESAnalysis()
-        analysis.reduce_detector_spatial(
-            f, 'epix', rois=self.rois, adu_cutoff=self.adu_cutoff)
-        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
-        analysis.union_shots(f, 'epix_ROI_1', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix_ROI_1', ['xray', 'laser'])
-        self.bins = np.linspace(self.mintime, self.maxtime, self.numpoints)
-        analysis.time_binning(f, self.bins, lxt_key=self.lxt_key)
-        analysis.union_shots(f, 'timing_bin_indices', [
-                             'simultaneous', 'laser'])
-        analysis.separate_shots(f, 'timing_bin_indices', ['xray', 'laser'])
-        analysis.reduce_detector_temporal(
-            f, 'epix_ROI_1_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_temporal(
-            f, 'epix_ROI_1_xray_not_laser', 'timing_bin_indices_xray_not_laser', average=False)
-        analysis.normalize_xes(f, 'epix_ROI_1_simultaneous_laser_time_binned')
-        analysis.normalize_xes(f, 'epix_ROI_1_xray_not_laser_time_binned')
-        if self.pixels_to_patch.any() != None:
-            analysis.pixels_to_patch = self.pixels_to_patch
+        analysis=XESAnalysis()
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,adu_cutoff=self.adu_cutoff)
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+        analysis.union_shots(f,'epix_ROI_1',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix_ROI_1',['xray','laser'])
+        self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.bins,lxt_key=self.lxt_key)
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        analysis.reduce_detector_temporal(f,'epix_ROI_1_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'epix_ROI_1_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        analysis.normalize_xes(f,'epix_ROI_1_simultaneous_laser_time_binned')
+        analysis.normalize_xes(f,'epix_ROI_1_xray_not_laser_time_binned')   
+        if self.pixels_to_patch.any()!=None:
+            analysis.pixels_to_patch=self.pixels_to_patch
         f.close_h5()
-        analysis.make_energy_axis(
-            f, f.epix_ROI_1.shape[1], A=self.crystal_detector_distance, R=self.crystal_radius, d=self.crystal_d_space)
+        analysis.make_energy_axis(f,f.epix_ROI_1.shape[1],A=self.crystal_detector_distance,R=self.crystal_radius,d=self.crystal_d_space)
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
-
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                      
+        
         return f
-
-
+    
 class XESBatchAnalysisRotation(XESBatchAnalysis):
     def __init__(self):
         super().__init__()
-
-    def append_arbitrary_filtering(self, xes_experiment, verbose=False, basepath='.'):
+    def append_arbitrary_filtering(self,xes_experiment,verbose=False,basepath='.'):
         for run in self.runs:
-            f = spectroscopy_run(
-                xes_experiment, run, verbose=verbose, start_index=0, end_index=None)
+            f=spectroscopy_run(xes_experiment,run,verbose=verbose,start_index=0,end_index=None)
             f.run_file
             f.get_run_shot_properties()
-            target_file = f'{basepath}/{run:03d}_indices.txt'
-            arbfil = np.loadtxt(target_file, dtype=int)
+            target_file=f'{basepath}/{run:03d}_indices.txt'
+            arbfil=np.loadtxt(target_file,dtype=int)
             with h5py.File(f.run_file, 'a') as hf:
                 if 'arbitrary_filter' in hf:
                     del hf['arbitrary_filter']
                 insert_filter = np.zeros(f.total_shots)
                 insert_filter[arbfil] = 1
                 hf.create_dataset('arbitrary_filter', data=insert_filter)
-                self.update_status(f'Arbitrary filter appended to hdf5 file: {
-                                   f.run_file} using {target_file}')
-
+                self.update_status(f'Arbitrary filter appended to hdf5 file: {f.run_file} using {target_file}')
     def primary_analysis_static_parallel_loop(self, cores, experiment, verbose=False):
-        self.update_status(f"Starting parallel analysis loop with cores={
-                           cores}, experiment={experiment}, verbose={verbose}.")
+        self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
         pool = Pool(processes=cores)
         analyzed_runs = []
 
@@ -357,267 +328,234 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         pool.close()
         pool.join()
 
-        analyzed_runs = [analyzed_run for analyzed_run in sorted(
-            analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
         self.update_status("Parallel analysis loop completed.")
 
-    def primary_analysis_static(self, run, experiment, verbose=False, start_index=None, end_index=None):
-        if end_index == None:
-            end_index = self.end_index
-        if start_index == None:
+    def primary_analysis_static(self, run, experiment, verbose=False, start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
             try:
-                start_index = self.start_index
+                start_index=self.start_index
             except AttributeError:
-                start_index = 0
-        f = spectroscopy_run(experiment, run, verbose=verbose,
-                             start_index=start_index, end_index=end_index)
-        # f.load_run_keys(self.keys,self.friendly_names)
-        f.load_run_key_delayed(
-            self.key_epix, self.friendly_name_epix, rois=self.import_roi)
+                start_index=0
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        #f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
-        analysis = XESAnalysis()
+        analysis=XESAnalysis()
         if self.arbitrary_filter:
             f.set_arbitrary_filter()
-            analysis.union_shots(
-                f, 'epix', ['xray', 'arbitrary_filter'], new_key=False)
+            analysis.union_shots(f,'epix',['xray','arbitrary_filter'],new_key=False)
         else:
-            analysis.union_shots(f, 'epix', ['xray', 'xray'], new_key=False)
+            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
 
-        analysis.pixels_to_patch = self.pixels_to_patch
+        analysis.pixels_to_patch=self.pixels_to_patch
+        
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
 
-        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
 
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
 
-        analysis.reduce_detector_shots(f, 'epix', purge=False, new_key=False)
-        analysis.patch_pixels(f, 'epix', axis=0, mode=self.patch_mode)
-        if self.angle != 0:
-            # f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
-            f.epix = rotate(f.epix, angle=self.angle, axes=[0, 1])
+        analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
+        analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
+        if self.angle!=0:
+            #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+            f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
+            
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
 
-        analysis.reduce_detector_spatial(
-            f, 'epix', rois=self.rois, combine=True, purge=False)
-
-        # analysis.reduce_detector_shots(f,'epix_ROI_1')
-        self.keys_to_save = ['start_index', 'end_index', 'run_file', 'run_number',
-                             'verbose', 'status', 'status_datetime', 'epix_ROI_1', 'epix_summed']
+        #analysis.reduce_detector_shots(f,'epix_ROI_1')
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','epix_summed']
         f.purge_all_keys(self.keys_to_save)
         return f
-
-    def primary_analysis(self, experiment, run, verbose=False, start_index=None, end_index=None):
-        if end_index == None:
-            end_index = self.end_index
-        if start_index == None:
+  
+    def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
             try:
-                start_index = self.start_index
+                start_index=self.start_index
             except AttributeError:
-                start_index = 0
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        self.end_index = end_index
-        self.start_index = start_index
-        f = spectroscopy_run(experiment, run, verbose=verbose,
-                             start_index=start_index, end_index=end_index)
-        f.load_run_keys(self.keys, self.friendly_names)
-        f.load_run_key_delayed(
-            self.key_epix, self.friendly_name_epix, rois=self.import_roi)
+                start_index=0
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.end_index=end_index
+        self.start_index=start_index
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
 
-        analysis = XESAnalysis()
-        analysis.pixels_to_patch = self.pixels_to_patch
-        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
-        # analysis.patch_pixels(f,'epix',axis=1)
-        if self.angle != 0:
-            f.epix = rotate(f.epix, angle=self.angle, axes=[1, 2])
+        analysis=XESAnalysis()
+        analysis.pixels_to_patch=self.pixels_to_patch
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+        #analysis.patch_pixels(f,'epix',axis=1)
+        if self.angle!=0:
+            f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        self.bins = np.linspace(self.mintime, self.maxtime, self.numpoints)
-        analysis.time_binning(f, self.bins, lxt_key=self.lxt_key)
-        analysis.union_shots(f, 'timing_bin_indices', [
-                             'simultaneous', 'laser'])
-        analysis.separate_shots(f, 'timing_bin_indices', ['xray', 'laser'])
-        analysis.reduce_detector_temporal(
-            f, 'epix_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_temporal(
-            f, 'epix_xray_not_laser', 'timing_bin_indices_xray_not_laser', average=False)
-        analysis.reduce_detector_spatial(
-            f, 'epix_simultaneous_laser_time_binned', rois=self.rois)
-        analysis.reduce_detector_spatial(
-            f, 'epix_xray_not_laser_time_binned', rois=self.rois)
-        analysis.make_energy_axis(
-            f, f.epix_xray_not_laser_time_binned_ROI_1.shape[1], d=self.crystal_d_space, R=self.crystal_radius, A=self.crystal_detector_distance)
-        keys_to_save = ['start_index', 'end_index', 'run_file', 'run_number', 'verbose', 'status',
-                        'status_datetime', 'epix_xray_not_laser_time_binned_ROI_1', 'epix_simultaneous_laser_time_binned_ROI_1']
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.bins,lxt_key=self.lxt_key)
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
+        analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
+        analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
         f.purge_all_keys(keys_to_save)
-        analysis.make_energy_axis(
-            f, f.epix_xray_not_laser_time_binned_ROI_1.shape[1], d=self.crystal_d_space, R=self.crystal_radius, A=self.crystal_detector_distance)
+        analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
-
     def primary_analysis_range(self, experiment, run, shot_ranges, verbose=False, method=None):
         try:
             if method is None:
-                method = self.primary_analysis
+                method = self.primary_analysis 
             start, end = shot_ranges
             return method(run=run, experiment=experiment, start_index=start, end_index=end, verbose=verbose)
         except Exception as e:
             # Return or log the exception with enough details
             return {"error": str(e), "run": run, "shot_ranges": shot_ranges}
 
-    def hit_find(self, experiment, run, verbose=False, start_index=None, end_index=None):
-        if end_index == None:
-            end_index = self.end_index
-        if start_index == None:
+
+    
+    def hit_find(self,experiment,run,verbose=False,start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
             try:
-                start_index = self.start_index
+                start_index=self.start_index
             except AttributeError:
-                start_index = 0
-        f = spectroscopy_run(experiment, run, verbose=verbose,
-                             start_index=start_index, end_index=end_index)
-        f.load_run_keys(self.keys, self.friendly_names)
-        f.load_run_key_delayed(self.key_epix, self.friendly_name_epix)
+                start_index=0
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        f.load_run_keys(self.keys,self.friendly_names)
+        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix)
         f.get_run_shot_properties()
 
-        analysis = XESAnalysis()
-        analysis.pixels_to_patch = self.pixels_to_patch
-        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
-        f.epix = np.nansum(np.nansum(f.epix, axis=1), axis=1)
+        analysis=XESAnalysis()
+        analysis.pixels_to_patch=self.pixels_to_patch
+        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+        f.epix=np.nansum(np.nansum(f.epix,axis=1),axis=1)
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])  
         return f
+            
+        
+            
 
+        
+    
 
 class XASBatchAnalysis(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mintime = -2.0
-        self.maxtime = 10.0
-        self.numpoints = 240
-        self.minccm = 7.105
-        self.maxccm = 7.135
-        self.numpoints_ccm = 90
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        self.filters = []
-
-    def primary_analysis(self, experiment, run, verbose=False):
-        f = spectroscopy_run(experiment, run, verbose=verbose)
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.minccm=7.105
+        self.maxccm=7.135
+        self.numpoints_ccm=90
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
-
-        f.load_run_keys(self.keys, self.friendly_names)
-        if self.scattering == True:
+        
+        f.load_run_keys(self.keys,self.friendly_names)
+        if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
-            f.ipm = f.scattering[:-1]
-        analysis = XASAnalysis()
+            f.ipm=f.scattering[:-1]
+        analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
             elist = np.unique(ccm_val)
         except KeyError as e:
             self.update_status('Key does not exist: %s' % e.args[0])
-            elist = np.linspace(self.minccm, self.maxccm, self.numpoints_ccm)
-        analysis.make_ccm_axis(f, elist)
+            elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+        analysis.make_ccm_axis(f,elist)
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        analysis.union_shots(f, 'ipm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ipm', ['xray', 'laser'])
-        analysis.union_shots(f, 'ccm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ccm', ['xray', 'laser'])
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        analysis.time_binning(f, self.time_bins)
-        analysis.ccm_binning(f, 'ccm_bins', 'ccm')
-        analysis.union_shots(f, 'timing_bin_indices', [
-                             'simultaneous', 'laser'])
-        analysis.separate_shots(f, 'timing_bin_indices', ['xray', 'laser'])
-        analysis.union_shots(f, 'ccm_bin_indices', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ccm_bin_indices', ['xray', 'laser'])
-        analysis.reduce_detector_ccm_temporal(
-            f, 'epix_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', 'ccm_bin_indices_simultaneous_laser', average=True)
-        analysis.reduce_detector_ccm_temporal(
-            f, 'epix_xray_not_laser', 'timing_bin_indices_xray_not_laser', 'ccm_bin_indices_xray_not_laser', average=True)
-        analysis.reduce_detector_ccm_temporal(
-            f, 'ipm_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', 'ccm_bin_indices_simultaneous_laser', average=True)
-        analysis.reduce_detector_ccm_temporal(
-            f, 'ipm_xray_not_laser', 'timing_bin_indices_xray_not_laser', 'ccm_bin_indices_xray_not_laser', average=True)
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'ccm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm',['xray','laser'])
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.time_bins)
+        analysis.ccm_binning(f,'ccm_bins','ccm')
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
+        analysis.reduce_detector_ccm_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
+        analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
         return f
-
 
 class XASBatchAnalysis_1D_ccm(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.minccm = 7.105
-        self.maxccm = 7.135
-        self.numpoints_ccm = 100
-        self.filters = []
-
-    def primary_analysis(self, experiment, run, verbose=False):
-        f = spectroscopy_run(experiment, run, verbose=verbose)
+        self.minccm=7.105
+        self.maxccm=7.135
+        self.numpoints_ccm=100
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
-
-        f.load_run_keys(self.keys, self.friendly_names)
-        analysis = XASAnalysis()
+        
+        f.load_run_keys(self.keys,self.friendly_names)
+        analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
             elist = np.unique(ccm_val)
         except KeyError as e:
             self.update_status('Key does not exist: %s' % e.args[0])
-            elist = np.linspace(self.minccm, self.maxccm, self.numpoints_ccm)
-        analysis.make_ccm_axis(f, elist)
+            elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+        analysis.make_ccm_axis(f,elist)
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        analysis.union_shots(f, 'ipm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ipm', ['xray', 'laser'])
-        analysis.union_shots(f, 'ccm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ccm', ['xray', 'laser'])
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'ccm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm',['xray','laser'])
 #         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
 #         analysis.time_binning(f,self.time_bins)
-        analysis.ccm_binning(f, 'ccm_bins', 'ccm')
+        analysis.ccm_binning(f,'ccm_bins','ccm')
 #         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
 #         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
-        analysis.union_shots(f, 'ccm_bin_indices', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ccm_bin_indices', ['xray', 'laser'])
-        analysis.reduce_detector_ccm(
-            f, 'epix_simultaneous_laser', 'ccm_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_ccm(
-            f, 'epix_xray_not_laser', 'ccm_bin_indices_xray_not_laser', average=False)
-        analysis.reduce_detector_ccm(
-            f, 'ipm_simultaneous_laser', 'ccm_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_ccm(
-            f, 'ipm_xray_not_laser', 'ccm_bin_indices_xray_not_laser', average=False)
+        analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
+        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
         return f
-
 
 class XASBatchAnalysis_1D_time(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mintime = -2.0
-        self.maxtime = 10.0
-        self.numpoints = 240
-        self.minccm = 7.105
-        self.maxccm = 7.135
-        self.numpoints_ccm = 90
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        self.filters = []
-
-    def primary_analysis(self, experiment, run, verbose=False):
-        f = spectroscopy_run(experiment, run, verbose=verbose)
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.minccm=7.105
+        self.maxccm=7.135
+        self.numpoints_ccm=90
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
-
-        f.load_run_keys(self.keys, self.friendly_names)
-        analysis = XASAnalysis()
+        
+        f.load_run_keys(self.keys,self.friendly_names)
+        analysis=XASAnalysis()
 #         try:
 #             ccm_val = getattr(f, 'ccm_E_setpoint')
 #             elist = np.unique(ccm_val)
@@ -625,92 +563,76 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
 #             self.update_status('Key does not exist: %s' % e.args[0])
 #             elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
 #         analysis.make_ccm_axis(f,elist)
-        self.time_bins = np.linspace(
-            self.mintime, self.maxtime, self.numpoints)
-        analysis.time_binning(f, self.time_bins)
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        analysis.time_binning(f,self.time_bins)
         for fil in self.filters:
-            analysis.filter_shots(
-                f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        analysis.union_shots(f, 'ipm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ipm', ['xray', 'laser'])
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
 #         analysis.union_shots(f,'ccm',['simultaneous','laser'])
 #         analysis.separate_shots(f,'ccm',['xray','laser'])
 
 
 #         analysis.ccm_binning(f,'ccm_bins','ccm')
-        analysis.union_shots(f, 'timing_bin_indices', [
-                             'simultaneous', 'laser'])
-        analysis.separate_shots(f, 'timing_bin_indices', ['xray', 'laser'])
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
 #         analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
 #         analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
-        analysis.reduce_detector_temporal(
-            f, 'epix_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_temporal(
-            f, 'epix_xray_not_laser', 'timing_bin_indices_xray_not_laser', average=False)
-        analysis.reduce_detector_temporal(
-            f, 'ipm_simultaneous_laser', 'timing_bin_indices_simultaneous_laser', average=False)
-        analysis.reduce_detector_temporal(
-            f, 'ipm_xray_not_laser', 'timing_bin_indices_xray_not_laser', average=False)
+        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        analysis.reduce_detector_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        analysis.reduce_detector_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
         return f
-
 
 class ScanAnalysis_1D(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         pass
-
-    def primary_analysis(self, experiment, run, verbose=False):
-        f = spectroscopy_run(experiment, run=run, verbose=True)
-        analysis = XASAnalysis()
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run=run,verbose=True)
+        analysis=XASAnalysis()
         f.get_run_shot_properties()
-        f.load_run_keys(self.keys, self.friendly_names)
-        # f.ccm_bins=f.ccm
-        analysis.bin_uniques(f, 'scan')
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        analysis.union_shots(f, 'ipm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ipm', ['xray', 'laser'])
-        analysis.union_shots(f, 'scan', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'scan', ['xray', 'laser'])
-        analysis.union_shots(f, 'scanvar_indices', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'scanvar_indices', ['xray', 'laser'])
-        analysis.reduce_detector_ccm(
-            f, 'epix_simultaneous_laser', 'scanvar_indices_simultaneous_laser', average=False, not_ccm=True)
-        analysis.reduce_detector_ccm(
-            f, 'epix_xray_not_laser', 'scanvar_indices_xray_not_laser', average=False, not_ccm=True)
-        analysis.reduce_detector_ccm(
-            f, 'ipm_simultaneous_laser', 'scanvar_indices_simultaneous_laser', average=False, not_ccm=True)
-        analysis.reduce_detector_ccm(
-            f, 'ipm_xray_not_laser', 'scanvar_indices_xray_not_laser', average=False, not_ccm=True)
+        f.load_run_keys(self.keys,self.friendly_names)
+        #f.ccm_bins=f.ccm
+        analysis.bin_uniques(f,'scan')
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'scan',['simultaneous','laser'])
+        analysis.separate_shots(f,'scan',['xray','laser'])
+        analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
+        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
+        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
         return f
-
-
 class ScanAnalysis_1D_XES(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         pass
 
-    def primary_analysis(self, experiment, run, verbose=False):
-        f = spectroscopy_run(experiment, run=run, verbose=True)
-        analysis = XESAnalysis()
+    def primary_analysis(self,experiment,run,verbose=False):
+        f=spectroscopy_run(experiment,run=run,verbose=True)
+        analysis=XESAnalysis()
         f.get_run_shot_properties()
-        f.load_run_keys(self.keys, self.friendly_names)
-        # f.ccm_bins=f.ccm
-        analysis.bin_uniques(f, 'scan')
-        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
-        analysis.union_shots(f, 'ipm', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'ipm', ['xray', 'laser'])
-        analysis.union_shots(f, 'scan', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'scan', ['xray', 'laser'])
-        analysis.union_shots(f, 'scanvar_indices', ['simultaneous', 'laser'])
-        analysis.separate_shots(f, 'scanvar_indices', ['xray', 'laser'])
+        f.load_run_keys(self.keys,self.friendly_names)
+        #f.ccm_bins=f.ccm
+        analysis.bin_uniques(f,'scan')
+        analysis.union_shots(f,'epix',['simultaneous','laser'])
+        analysis.separate_shots(f,'epix',['xray','laser'])
+        analysis.union_shots(f,'ipm',['simultaneous','laser'])
+        analysis.separate_shots(f,'ipm',['xray','laser'])
+        analysis.union_shots(f,'scan',['simultaneous','laser'])
+        analysis.separate_shots(f,'scan',['xray','laser'])
+        analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
 
-        analysis.reduce_det_scanvar(
-            f, 'epix_simultaneous_laser', 'scanvar_indices_simultaneous_laser', 'scanvar_bins')
-        analysis.reduce_det_scanvar(
-            f, 'epix_xray_not_laser', 'scanvar_indices_xray_not_laser', 'scanvar_bins')
+        analysis.reduce_det_scanvar(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
+        analysis.reduce_det_scanvar(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
+
 
         return f
