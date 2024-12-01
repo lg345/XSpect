@@ -368,7 +368,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
 
         #analysis.reduce_detector_shots(f,'epix_ROI_1')
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','epix_summed']
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','epix']
         f.purge_all_keys(self.keys_to_save)
         return f
   
