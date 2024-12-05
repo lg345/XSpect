@@ -12,7 +12,7 @@ You can download the *XSpecT* source code from the github repo_.
 Documentation
 --------------------
 
-Detail documentation of the code can be found below.
+Detailed documentation of the code can be found here_.
 
 Addtionally, example jupyter-notebooks can be found in the examples_ folder.
 
@@ -28,6 +28,8 @@ The above copyright notice and this permission notice shall be included in all c
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
+Links
+--------------------
 .. toctree::
    :maxdepth: 2
 
@@ -36,4 +38,5 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 
 .. _python: https://www.python.org/
 .. _repo: https://github.com/lg345/XSpecT
+.. _here: modules.html
 .. _examples: https://github.com/lg345/XSpecT/tree/master/examples
