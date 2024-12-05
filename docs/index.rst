@@ -7,7 +7,7 @@ It is written in python following the principles of object-oriented programming.
 Installation
 --------------------
 
-You can download the *XSpecT* source code from the `github repo`.
+You can download the *XSpecT* source code from the github repo_.
 
 Documentation
 --------------------
@@ -34,5 +34,5 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
    index
    modules
 
-.. _`github repo`: https://github.com/lg345/XSpecT
+.. _repo: https://github.com/lg345/XSpecT
 .. _`repo examples folder`: https://github.com/lg345/XSpecT/tree/master/examples
