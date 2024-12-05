@@ -2,7 +2,7 @@ Overview
 ====================
 
 *XSpecT* is an analysis tool for ultrafast x-ray experiments.
-It is written in python following the principles of object-oriented programming.
+It is written in python_ following the principles of object-oriented programming.
 
 Installation
 --------------------
@@ -14,7 +14,7 @@ Documentation
 
 Detail documentation of the code can be found below.
 
-Addtionally, example jupyter-notebooks can be found in the `repo examples folder`.
+Addtionally, example jupyter-notebooks can be found in the examples_ folder.
 
 
 License
@@ -34,5 +34,6 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
    index
    modules
 
+.. _python: https://www.python.org/
 .. _repo: https://github.com/lg345/XSpecT
-.. _`repo examples folder`: https://github.com/lg345/XSpecT/tree/master/examples
+.. _examples: https://github.com/lg345/XSpecT/tree/master/examples
