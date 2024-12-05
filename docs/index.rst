@@ -31,6 +31,7 @@ THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR I
 .. toctree::
    :maxdepth: 2
 
+   index
    modules
 
 .. _`github repo`: https://github.com/lg345/XSpecT
