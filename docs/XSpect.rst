@@ -1,9 +1,6 @@
 XSpect package
 ==============
 
-Submodules
-----------
-
 XSpect.XSpect\_Analysis module
 ------------------------------
 
