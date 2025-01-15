@@ -851,12 +851,23 @@ class XASAnalysis(SpectroscopyAnalysis):
         threshold : int, optional
             The minimum number of shots required to keep a CCM value (default is 120).
         """
+                
+        import numpy as np
         
-        ccm_bins=getattr(run,'ccm_bins',elist_center)
-        ccm_energies=getattr(run,'ccm_energies',elist)
-        counts = np.bincount(bins)
-        trimmed_ccm=ccm_energies[counts[:-1]>120]
-        self.make_ccm_axis(run,ccm_energies)
+        ccm_bins = getattr(run, 'ccm_bins')
+        ccm_energies = getattr(run, 'ccm')
+        ccm_bins =np.sort(ccm_bins )
+        ccm_energies = np.sort(ccm_energies)
+
+        counts, bin_edges = np.histogram(ccm_energies, bins=ccm_bins)
+
+        valid_bins = counts >= 120
+        
+
+        trimmed_bin_edges = bin_edges[:-1][valid_bins]
+
+        setattr(run,  'ccm_bins', np.sort(trimmed_bin_edges))
+        self.make_ccm_axis(run, trimmed_bin_edges)
         
     def make_ccm_axis(self,run,energies):
         """
@@ -870,15 +881,6 @@ class XASAnalysis(SpectroscopyAnalysis):
             Array of energy values to be used for creating CCM bins.
         """
         elist=energies
-#         addon = (elist[-1] - elist[-2])/2 # add on energy 
-#         elist2 = np.append(elist,elist[-1]+addon) # elist2 will be elist with dummy value at end
-#         elist_center = np.empty_like(elist2)
-#         for ii in np.arange(elist.shape[0]):
-#             if ii == 0:
-#                 elist_center[ii] = elist2[ii] - (elist2[ii+1] - elist2[ii])/2
-#             else:
-#                 elist_center[ii] = elist2[ii] - (elist2[ii] - elist2[ii-1])/2
-#                 elist_center[-1] = elist2[-1]
         addon = (elist[-1] - elist[-2])/2
         elist2 = np.append(elist,elist[-1]+addon)
         elist_center = np.empty_like(elist)
@@ -911,10 +913,10 @@ class XASAnalysis(SpectroscopyAnalysis):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.shape(run.time_bins)[0]+1, np.shape(run.ccm_bins)[0]))
+        reduced_array = np.zeros((np.shape(run.time_bins)[0]+1, np.shape(run.ccm_bins)[0]+1))
         unique_indices =np.column_stack((timing_indices, ccm_indices))
         np.add.at(reduced_array, (unique_indices[:, 0], unique_indices[:, 1]), detector)
-        reduced_array = reduced_array[:-1,:]
+        reduced_array = reduced_array[:-1,:-1]
         setattr(run, detector_key+'_time_energy_binned', reduced_array)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
         
@@ -986,5 +988,6 @@ class XASAnalysis(SpectroscopyAnalysis):
         """
         ccm=getattr(run,ccm_key)
         bins=getattr(run,ccm_bins_key)
+        bins=np.sort(bins)
         run.ccm_bin_indices=np.digitize(ccm, bins)
         run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
