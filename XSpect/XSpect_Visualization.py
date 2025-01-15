@@ -31,6 +31,7 @@ class SpectroscopyVisualization:
         spectrum_2= getattr(run, detector_keys[1])
         spectrum=spectrum_1-spectrum_2
         vmin, vmax = np.percentile(spectrum, [1,99])
+
         fig,ax=plt.subplots(1,1)
         im=ax.imshow(spectrum, vmin=vmin, vmax=vmax, origin='lower',aspect='auto')
         run.difference_spectrum=spectrum
@@ -164,7 +165,7 @@ class XASVisualization(SpectroscopyVisualization):
             vmin = -vmax
         contlevels = np.linspace(vmin*0.5, vmax*0.5, 20)
         
-        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu',extend="max")
+        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu',extend="max",vmin=self.vmin,vmax=self.vmax)
         plt.colorbar()
         plt.xlabel('Energy (keV)')
         plt.ylabel('Time (ps)')
