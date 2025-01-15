@@ -472,11 +472,15 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
-            elist = np.unique(ccm_val)
-        except KeyError as e:
+            
+            elist = np.unique(np.round(ccm_val, 4))
+            print(elist)
+        except AttributeError as e:
             self.update_status('Key does not exist: %s' % e.args[0])
             elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
+        
         analysis.make_ccm_axis(f,elist)
+        analysis.trim_ccm(f)
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         analysis.union_shots(f,'epix',['simultaneous','laser'])
