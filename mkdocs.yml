@@ -5,6 +5,9 @@ copyright: © 2025 LCLS
 
 nav:
   - Home: index.md
+  - Examples: 
+    - XAS: Getting_started_XAS.md 
+    - XES: Getting_started_XES.md
   - Source:
     - XSpect:
       - XSpect_Analysis.md
