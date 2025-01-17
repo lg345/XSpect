@@ -1,0 +1,37 @@
+site_name: XSpecT
+repo_url: https://github.com/lg345/XSpecT
+site_author: JTB
+copyright: © 2025 LCLS
+
+nav:
+  - Home: index.md
+  - Source:
+    - XSpect:
+      - XSpect_Analysis.md
+      - XSpect_Controller.md
+      - XSpect_Diagnostics.md
+      - XSpect_PostProcessing.md
+      - XSpect_Visualization.md
+
+plugins:
+- search
+- mkdocstrings
+- offline
+
+theme:
+  name: material
+  logo: media/logo_2.png
+  favicon: media/logo.png
+  palette:
+    - scheme: default
+      primary: teal
+      accent: deep purple
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
