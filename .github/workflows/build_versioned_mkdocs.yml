@@ -10,27 +10,19 @@ permissions:
   id-token: write
 
 jobs:
-  mkdocs_build:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-20.04
     steps:
-      - name: Get branch name
-        id: branch-names
-        uses: tj-actions/branch-names@v8
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.10.14
-      - name: Install dependencies
-        run: pip install mkdocs mkdocs-material mkdocstrings
-      - name: Git Config
-        run: |
-          git config --local user.name "github-actions[bot]"
-          git config --local user.email "<>"
-      - name: Build jtb version
-        if: steps.branch-names.outputs.current_branch == 'jtb'
-      - name: Build release
-        if: steps.branch-names.outputs.is_tag == 'true'
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Build with MkDocs
+      uses: romw314/mkdocs-action@v2
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v1.0.9
+  deploy:
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Configure Pages
+      uses: actions/configure-pages@v4.0.0
+    - name: Deploy to Pages
+      uses: actions/deploy-pages@v3.0.1
