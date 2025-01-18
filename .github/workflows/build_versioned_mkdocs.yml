@@ -10,10 +10,38 @@ permissions:
   id-token: write
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
+  build_mkdocs:
+    runs-on: ubuntu-latest
+ 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
-    - name: Build with MkDocs
-      uses: romw314/mkdocs-action@v2
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
+      - run: pip install \
+            mkdocs-material
+      - run: mkdocs gh-deploy --config-file example-mkdocs/mkdocs.yml --force
+ 
+  deploy_mkdocs:
+    needs: build_mkdocs
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: gh-pages
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '.'
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
