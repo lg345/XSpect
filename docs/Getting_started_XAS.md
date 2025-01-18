@@ -10,7 +10,7 @@ XSpecT relies on a number of common python packages including:
 Depending on your system you may need to install the necessary
 dependencies. S3DF users should have the necessary packages by default.
 
-``` python
+``` py
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
@@ -32,7 +32,7 @@ import tempfile
 XSpecT has several main modules for function to control various aspects
 of the analysis, visualization, diagnostics and overall processing.
 
-``` python
+``` py
 sys.path.insert(0, './XSpecT/')
 import XSpect.XSpect_Analysis
 import XSpect.XSpect_Controller
@@ -45,18 +45,18 @@ import XSpect.XSpect_Diagnostics
 
 ### Setting up experiment parameters
 
-Intializing the `spectroscopy_experiment` class and setting the relevant
+Initializing the `spectroscopy_experiment` class and setting the relevant
 experiment information`lslc_run`, `hutch`, and `experiment_id`
 parameters.
 
-``` python
+``` py
 xas_experiment = XSpect.XSpect_Analysis.spectroscopy_experiment(lcls_run=22, hutch='xcs', experiment_id='xcsl1030422')
 ```
 
 These values will be used to obtain the directory for the data which is
 stored in `experiment_directory`:
 
-``` python
+``` py
 xas_experiment.experiment_directory
 ```
 
@@ -70,7 +70,7 @@ various datasets, filter thresholds, and timing/energy parameters. The
 class also contain an analysis pipeline method, which controls the
 sequence of analysis operations.
 
-``` python
+``` py
 xas=XSpect.XSpect_Controller.XASBatchAnalysis()
 ```
 
@@ -89,7 +89,7 @@ includes:
 Their "friendly" names serve as an easier to remember alias for the keys and are also defined as a list of strings with the same ordering as the keys.
 These lists are passed to `set_key_aliases` which creates the key aliases.
 
-``` python
+``` py
 keys=['epics/ccm_E', 'epicsUser/ccm_E_setpoint', 'tt/ttCorr', 'epics/lxt_ttc', 'enc/lasDelay', 'ipm4/sum', 'tt/AMPL', 'epix_2/ROI_0_sum'] 
 names=['ccm', 'ccm_E_setpoint', 'time_tool_correction', 'lxt_ttc', 'encoder', 'ipm', 'time_tool_ampl', 'epix']
 xas.set_key_aliases(keys,names)
@@ -101,7 +101,7 @@ Filters are set using `add_filter` which takes requires the parameters
 \'shot_type\' (e.g. xray, simultaneous), \'filter_key\' (i.e. which
 dataset to apply the filter to), and the filter threshold.
 
-``` python
+``` py
 xas.add_filter('xray','ipm',500.0)
 xas.add_filter('simultaneous','ipm',500.0)
 xas.add_filter('simultaneous','time_tool_ampl',0.01)
@@ -113,7 +113,7 @@ Multiple runs (files) can be analyzed and combined into a single data set using 
 Specify the runs as a list of strings or as a single string with space separated run numbers. 
 Ranges can be specified using numbers separated by a "-".
 
-``` python
+``` py
 xas.run_parser(['240-243 245-254'])
 ```
 
@@ -121,7 +121,7 @@ xas.run_parser(['240-243 245-254'])
 
 Delay timing range and number of points is set in picoseconds.
 
-``` python
+``` py
 xas.mintime = -0.5
 xas.maxtime = 2.0
 xas.numpoints = 25
@@ -129,11 +129,11 @@ xas.numpoints = 25
 
 #### Normalization option
 
-Normalization is set by default (`False`) to use an IPM sum dataset.
+Normalization is set by default (False) to use an IPM sum dataset.
 Alternatively, the scattering liquid ring signal can be used:
 
-``` python
-xas.scattering=True
+``` py
+xas.scattering = True
 ```
 
 ### Running Analysis Loop
@@ -141,9 +141,9 @@ xas.scattering=True
 With the necessary parameters set the analysis procedure can be
 initiatilized. Here you pass the experiment attributes from
 `xas_experiment`. For details of the step by step analysis processes set
-\"verbose=True\" (False is the default).
+`verbose= True ` (False is the default).
 
-``` python
+``` py
 xas.primary_analysis_loop(xas_experiment, verbose=True)
 ```
 
@@ -179,7 +179,7 @@ xas.primary_analysis_loop(xas_experiment, verbose=True)
 
 The data for each run is stored in `analyzed_runs` list.
 
-``` python
+``` py
 xas.analyzed_runs
 ```
 
@@ -201,7 +201,7 @@ xas.analyzed_runs
 We can check the data shape for the laser-off shots first analyzed run,
 which has the dimensions of 25 time bins by 54 energy bins.
 
-``` python
+``` py
 print("Data shape:", xas.analyzed_runs[0].epix_xray_not_laser_time_energy_binned.shape)
 ```
 
@@ -209,7 +209,7 @@ print("Data shape:", xas.analyzed_runs[0].epix_xray_not_laser_time_energy_binned
 
 Since the laser the laser is off, we can average across all time bins for the epix and normalization channels.
 
-``` python
+``` py
 y = np.average(xas.analyzed_runs[0].epix_xray_not_laser_time_energy_binned, axis = 0)
 norm = np.average(xas.analyzed_runs[0].ipm_xray_not_laser_time_energy_binned, axis =0)
 ```
@@ -218,7 +218,7 @@ norm = np.average(xas.analyzed_runs[0].ipm_xray_not_laser_time_energy_binned, ax
 
 Then the laser off spectrum can be plotted versus the monochromator energies.
 
-``` python
+``` py
 plt.plot(xas.analyzed_runs[0].ccm_energies, y/norm, label="Laser-off")
 plt.xlabel("Energy (eV)")
 plt.ylabel("Normalized XAS")
@@ -233,7 +233,7 @@ The 2D (time versus energy) data can be summed and plotted using the XSpecT visu
 First, from visualization the `XASVisualization` object is instantiated. 
 Then, using the `combine_spectra` method and passing the `xas` data object and the necessary data keys the data is processed.
 
-``` python
+``` py
 v=XSpect.XSpect_Visualization.XASVisualization()
 v.combine_spectra(xas_analysis=xas,
                   xas_laser_key='epix_simultaneous_laser_time_energy_binned',
@@ -245,7 +245,7 @@ v.combine_spectra(xas_analysis=xas,
 Finally, the 2D spectrum can be plotted, setting vmin and vmax colorbar
 parameters as needed.
 
-``` python
+``` py
 v.plot_2d_difference_spectrum(xas, vmin=-0.3, vmax=0.3)
 ```
 

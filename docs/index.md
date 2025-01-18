@@ -1,12 +1,14 @@
 # Overview
 
-XSpecT is an analysis tool for ultrafast x-ray experiments. It is written in [python](https://www.python.org/) following the principles of object-oriented programming.
+XSpecT is an analysis software package designed for ultrafast x-ray free electron laser experiments. It is written in [python](https://www.python.org/) following the principles of object-oriented programming.
 
 ## Installation
 
+The source code is available for download from the [XSpecT github repo](https://github.com/lg345/XSpecT).
+
 ## Getting Started
 
-Check out our quick start example as well as the example jupyter noteboks found [here](https://github.com/lg345/XSpecT/tree/master/examples).
+Check out our quick start examples for [XAS](Getting_started_XAS.html) and [XES](Getting_started_XES.html), as well as the example jupyter noteboks found [here](https://github.com/lg345/XSpecT/tree/master/examples).
 
 ## License 
 

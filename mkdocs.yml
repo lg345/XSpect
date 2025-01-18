@@ -5,8 +5,9 @@ copyright: © 2025 LCLS
 
 nav:
   - Home: index.md
-  - Examples: 
-    - XAS: Getting_started_XAS.md 
+  - Overview: Overview.md
+  - Examples:
+    - XAS: Getting_started_XAS.md
     - XES: Getting_started_XES.md
   - Source:
     - XSpect:
@@ -21,6 +22,20 @@ plugins:
 - mkdocstrings
 - offline
 
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+
 theme:
   name: material
   logo: media/logo_2.png
@@ -30,11 +45,11 @@ theme:
       primary: teal
       accent: deep purple
       toggle:
-        icon: material/brightness-7
+        icon: material/brightness-6
         name: Switch to dark mode
     - scheme: slate
       primary: teal
       accent: amber
       toggle:
-        icon: material/brightness-4
+        icon: material/brightness-5
         name: Switch to light mode
