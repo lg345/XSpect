@@ -361,13 +361,14 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
 
         analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
         
-        if self.angle!=0:
-            #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
-            f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
+
         if self.transpose:
             f.epix=np.transpose(f.epix)
         analysis.pixels_to_patch=self.pixels_to_patch     
         analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
+        if self.angle!=0:
+            #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+            f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
 
         #analysis.reduce_detector_shots(f,'epix_ROI_1')
