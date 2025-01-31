@@ -1,4 +1,4 @@
-# Overview
+# XSpecT
 
 XSpecT follows the principles of [Model-View-Controller](https://en.wikipedia.org/wiki/Model%E2%80%93view%E2%80%93controller) in its design. It is written in [python](https://www.python.org/) following the object-oriented programming paradigm. It is designed for analyzing X-ray absorption and emission spectroscopy data at X-ray free electron lasers and is currently in use at the [LCLS](https://lcls.slac.stanford.edu/). 
 

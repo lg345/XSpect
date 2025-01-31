@@ -9,6 +9,7 @@ nav:
   - Examples:
     - XAS: Getting_started_XAS.md
     - XES: Getting_started_XES.md
+    - Post_Processing: Post_Processing.md
   - Source:
     - XSpect:
       - XSpect_Analysis.md
