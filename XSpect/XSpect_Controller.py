@@ -34,18 +34,35 @@ class BatchAnalysis:
         self.run_shot_ranges = {}
         self.analyzed_runs = []
     def aggregate_statistics(self):
-        
         aggregated_stats = defaultdict(lambda: defaultdict(int))
+        
         for run in self.analyzed_runs:
             run_number = run.run_number
             run_shots = run.run_shots
             
             for key, value in run_shots.items():
                 aggregated_stats[run_number][key] += value
+
+        # Calculate Percent_XES_Hits after aggregation
+        for run_number, stats in aggregated_stats.items():
+            total = stats.get('Total', 1)
+            xes_hits = stats.get('XES_Hits', 0)
+            stats['Percent_XES_Hits'] = (xes_hits / total) * 100
+        
         aggregated_stats = {run_number: dict(stats) for run_number, stats in aggregated_stats.items()}
         
-        setattr(self,'run_statistics',dict(aggregated_stats))
-        
+        setattr(self, 'run_statistics', dict(aggregated_stats))
+
+    def print_run_statistics(self):
+        for run_number, stats in self.run_statistics.items():
+            print(f"Run Number: {run_number}")
+            for key, value in stats.items():
+                if key == 'Percent_XES_Hits':
+                    print(f"  {key}: {value:.2f}%")
+                else:
+                    print(f"  {key}: {value}")
+            print()  # Add a newline for better readability
+            
     def update_status(self, update):
         self.status.append(update)
         self.status_datetime.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -395,7 +412,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
 
         #analysis.reduce_detector_shots(f,'epix_ROI_1')
         self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','epix_summed','epix','all_epix','run_shots']
+
         f.purge_all_keys(self.keys_to_save)
+        #analysis.make_energy_axis(f,f.epix.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
   
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):

@@ -34,6 +34,31 @@ class SpectroscopyVisualization:
         fig,ax=plt.subplots(1,1)
         im=ax.imshow(spectrum, vmin=vmin, vmax=vmax, origin='lower',aspect='auto')
         run.difference_spectrum=spectrum
+
+    def make_energy_axis(self, A, R,  mm_per_pixel=0.05, d=0.895):
+        """
+        Determination of energy axis by pixels and crystal configuration
+
+        Parameters
+        ----------
+        A : float
+            The detector to vH distance (mm) and can roughly float. This will affect the spectral offset.
+        R : float
+            The vH crystal radii (mm) and should not float. This will affect the spectral stretch.
+        pixel_array : array-like
+            Array of pixels to determine the energy of.
+        d : float
+            Crystal d-spacing. To calculate, visit: spectra.tools/bin/controller.pl?body=Bragg_Angle_Calculator
+
+        """
+        pix = mm_per_pixel
+        gl = np.arange(np.shape(self.summed_xes)[0], dtype=np.float64)
+        gl *= pix
+        ll = gl / 2 - (np.amax(gl) - np.amin(gl)) / 4
+        factor = 1.2398e4
+        xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
+        
+        self.energy=xaxis[:]
         
 class XESVisualization(SpectroscopyVisualization):
     def __init__(self):
@@ -94,6 +119,28 @@ class XESVisualization(SpectroscopyVisualization):
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')
         setattr(xes_analysis,'difference_spectrum',difference_spectrum)
+
+    def normalize_spectrum(self, low, high):
+        """
+        Normalize the spectrum (x, y) to unity based on the specified range [low, high].
+
+        Parameters:
+        x (np.ndarray): Energy values.
+        y (np.ndarray): Intensity values.
+        low (float): Lower bound of the energy range for normalization.
+        high (float): Upper bound of the energy range for normalization.
+        
+        Returns:
+        np.ndarray: Normalized intensity values.
+        """
+        y=self.background_subtracted
+        x=self.energy
+        mask = (x >= low) & (x <= high)
+        area = np.trapz(y[mask], x[mask])
+        if area == 0:
+            raise ValueError("The area for normalization is zero, normalization cannot be performed.")
+        normalized_y = y / area
+        setattr(self,'normalized',normalized_y)
         
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):
