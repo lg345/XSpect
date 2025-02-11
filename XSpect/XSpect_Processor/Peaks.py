@@ -5,7 +5,8 @@ def gaussian(x, amplitude, mean, stddev):
 
 def stdev_to_fwhm_gaussian(stddev):
     # FWHM for a Gaussian is 2.3548 * standard deviation
-    return 2 * np.sqrt(2 * np.log(2)) * stddev
+   # return 2 * np.sqrt(2 * np.log(2)) * stddev
+    return  2.3548 * stddev
 
 def first_moment(x, y, x1, x2):
     """
@@ -40,7 +41,7 @@ def first_moment(x, y, x1, x2):
     
     return first_moment_value
 
-def gaussian_fwhm(x, y, x1, x2):
+def gaussian_fwhm(x, y, x1, x2,all_vals= False):
     """
     Fit a Gaussian to the data within a specified x range and calculate the FWHM of the peak.
 
@@ -73,6 +74,9 @@ def gaussian_fwhm(x, y, x1, x2):
         popt, pcov = curve_fit(gaussian, x_range, y_range, p0=initial_guess)
         amplitude, mean, stddev = popt
         fwhm = stdev_to_fwhm_gaussian(stddev)
-        return fwhm
+        if all_vals:
+            return popt
+        else:
+            return fwhm
     except RuntimeError:
         raise RuntimeError("Gaussian fit did not converge.")

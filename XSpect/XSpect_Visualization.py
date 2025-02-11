@@ -141,6 +141,28 @@ class XESVisualization(SpectroscopyVisualization):
             raise ValueError("The area for normalization is zero, normalization cannot be performed.")
         normalized_y = y / area
         setattr(self,'normalized',normalized_y)
+    
+    def normalize_peak(self, low, high):
+        """
+        Normalize the spectrum (x, y) to unity based on the specified range [low, high].
+
+        Parameters:
+        x (np.ndarray): Energy values.
+        y (np.ndarray): Intensity values.
+        low (float): Lower bound of the energy range for normalization.
+        high (float): Upper bound of the energy range for normalization.
+        
+        Returns:
+        np.ndarray: Normalized intensity values.
+        """
+        y=self.background_subtracted
+        x=self.energy
+        mask = (x >= low) & (x <= high)
+        y_peak = np.max(y[mask])
+        if y_peak == 0:
+            raise ValueError("The peak for normalization is zero, normalization cannot be performed.")
+        normalized_peak = y / y_peak
+        setattr(self,'normalized_peak',normalized_peak)
         
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):

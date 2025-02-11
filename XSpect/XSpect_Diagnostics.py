@@ -57,7 +57,7 @@ class plotting:
         fig.tight_layout()
         plt.show()
     
-    def roiview(self, data, thres, plt_type, energy_dispersive_axis = 'vert'):
+    def roiview(self, data, thres, plt_type, energy_dispersive_axis = 'horiz'):
         
         cl = (np.nanpercentile(data, 1), np.nanpercentile(data, 99))
         
