@@ -393,11 +393,13 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
         if self.hitfind:
             from XSpect.XSpect_Processor import HitFinding
-            hits=HitFinding.basic_detect(f.epix)
-            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}')
+            f.update_status(f'Starting hit finding')
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
             f.epix=f.epix[hits]
             f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
             f.run_shots['XES_Hits']=len(hits)
+            f.sum_images=sum_images
         analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
         
 
@@ -411,7 +413,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
 
         #analysis.reduce_detector_shots(f,'epix_ROI_1')
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','epix_summed','epix','all_epix','run_shots']
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots']
 
         f.purge_all_keys(self.keys_to_save)
         #analysis.make_energy_axis(f,f.epix.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
