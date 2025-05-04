@@ -480,10 +480,16 @@ class SpectroscopyAnalysis:
         tt_correction_key : str, optional
             The key for the time tool correction data (default is 'time_tool_correction').
         """
+        #print( str(getattr(run,fast_delay_key)))
+        #print( str(getattr(run,tt_correction_key)))
+        #print( str(getattr(run,fast_delay_key)+getattr(run,tt_correction_key)))
         if lxt_key==None:
-            run.delays = 0+ getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+            delays = np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
         else:
-            run.delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key)  + getattr(run,tt_correction_key)
+            delays = np.array(getattr(run,lxt_key)).flatten()*1.0e12 + np.array((getattr(run,fast_delay_key))).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
+        delays=np.array(getattr(run,fast_delay_key)).flatten()+np.array(getattr(run,tt_correction_key)).flatten()
+        #print(str(delays))
+        run.delays=delays
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
