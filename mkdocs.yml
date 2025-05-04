@@ -1,0 +1,60 @@
+site_name: XSpecT
+repo_url: https://github.com/lg345/XSpecT
+site_author: JTB
+copyright: © 2025 LCLS
+
+nav:
+  - Home: index.md
+  - Overview: Overview.md
+  - Examples:
+    - XAS: Getting_started_XAS.md
+    - XES: Getting_started_XES.md
+    - Post_Processing: Post_Processing.md
+  - Source:
+    - XSpect:
+      - XSpect_Analysis.md
+      - XSpect_Controller.md
+      - XSpect_Diagnostics.md
+      - XSpect_PostProcessing.md
+      - XSpect_Visualization.md
+
+plugins:
+- search
+- mkdocstrings:
+      handlers:
+        python:
+          options:
+            docstring_style: numpy
+- offline
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - admonition
+  - pymdownx.arithmatex:
+      generic: true
+  - footnotes
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.mark
+  - attr_list
+
+theme:
+  name: material
+  logo: media/logo_2.png
+  favicon: media/logo.png
+  palette:
+    - scheme: default
+      primary: teal
+      accent: deep purple
+      toggle:
+        icon: material/brightness-6
+        name: Switch to dark mode
+    - scheme: slate
+      primary: teal
+      accent: amber
+      toggle:
+        icon: material/brightness-5
+        name: Switch to light mode
