@@ -224,7 +224,6 @@ class XASVisualization(SpectroscopyVisualization):
         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
-        self.difference_spectrum=difference_spectrum
         setattr(xas_analysis,'difference_spectrum',difference_spectrum)
 #         vmin, vmax = np.nanpercentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
