@@ -77,7 +77,7 @@ class XESVisualization(SpectroscopyVisualization):
         else:
             raise ValueError('There is no energy axis in this object')
     
-    def combine_spectra(self,xes_analysis,xes_key,xes_laser_key):
+    def combine_spectra(self,xes_analysis,xes_key,xes_laser_key,dark_cutoff=None):
         xes=getattr(xes_analysis.analyzed_runs[0],xes_key)
         xes_laser=getattr(xes_analysis.analyzed_runs[0],xes_laser_key)
         summed_laser_off=np.zeros_like(xes)
@@ -85,11 +85,21 @@ class XESVisualization(SpectroscopyVisualization):
         for run in xes_analysis.analyzed_runs:
             summed_laser_on+=getattr(run,xes_laser_key)
             summed_laser_off+=getattr(run,xes_key)
+                
         self.summed_laser_on=summed_laser_on
         self.summed_laser_off=summed_laser_off
+        
         analysis=XESAnalysis()
         analysis.normalize_xes(self,'summed_laser_on')
         analysis.normalize_xes(self,'summed_laser_off')
+        if dark_cutoff != None :
+            #self.summed_laser_off=self.summed_laser_off[:dark_cutoff]+self.summed_laser_on[:dark_cutoff]
+            
+            print('Warning this dark will be based on ALL shots below a time index.')
+            analysis.normalize_xes(self,'summed_laser_off')
+            self.summed_laser_off_normalized=np.nanmean((self.summed_laser_off_normalized[:dark_cutoff,:]+self.summed_laser_on_normalized[:dark_cutoff,:])/2,axis=0)
+            #self.summed_laser_off_normalized=np.nanmean(self.summed_laser_off_normalized,axis=0)
+            self.summed_laser_off_normalized=np.tile(self.summed_laser_off_normalized, (np.shape(self.summed_laser_on_normalized)[0], 1))
         xes_analysis.summed_laser_on_normalized=self.summed_laser_on_normalized
         xes_analysis.summed_laser_off_normalized=self.summed_laser_off_normalized
 
@@ -108,6 +118,7 @@ class XESVisualization(SpectroscopyVisualization):
         laser_on_spectrum=xes_analysis.summed_laser_on_normalized
         laser_off_spectrum=xes_analysis.summed_laser_off_normalized
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
+        self.difference_spectrum=difference_spectrum
         try:
             energy=xes_analysis.analyzed_runs[0].kbeta_energy
         except:
