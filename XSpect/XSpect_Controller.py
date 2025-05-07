@@ -33,6 +33,7 @@ class BatchAnalysis:
         self.run_shots = {}
         self.run_shot_ranges = {}
         self.analyzed_runs = []
+        
         self.xes_line='kbeta'
         self.pixels_to_patch=[351,352,529,530,531]
         self.crystal_detector_distance=50.6
