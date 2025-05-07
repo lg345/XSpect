@@ -33,6 +33,30 @@ class BatchAnalysis:
         self.run_shots = {}
         self.run_shot_ranges = {}
         self.analyzed_runs = []
+        self.xes_line='kbeta'
+        self.pixels_to_patch=[351,352,529,530,531]
+        self.crystal_detector_distance=50.6
+        self.crystal_d_space=0.895
+        self.crystal_radius=250
+        self.adu_cutoff=3.0
+        self.rois=[[0,None]]
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+        self.key_epix=['epix_2/ROI_0_area']
+        self.friendly_name_epix=['epix']
+        self.angle=0.0
+        self.end_index=None
+        self.start_index=0
+        self.transpose=False
+        self.lxt_key='lxt_ttc'
+        self.import_roi=None
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        self.patch_mode='average'
+        self.arbitrary_filter=False
+        self.hitfind=False
     def aggregate_statistics(self):
         aggregated_stats = defaultdict(lambda: defaultdict(int))
         
@@ -266,30 +290,7 @@ def analyze_single_run(args):
 class XESBatchAnalysis(BatchAnalysis):
     def __init__(self):
         super().__init__()
-        self.xes_line='kbeta'
-        self.pixels_to_patch=[351,352,529,530,531]
-        self.crystal_detector_distance=50.6
-        self.crystal_d_space=0.895
-        self.crystal_radius=250
-        self.adu_cutoff=3.0
-        self.rois=[[0,None]]
-        self.mintime=-2.0
-        self.maxtime=10.0
-        self.numpoints=240
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        self.filters=[]
-        self.key_epix=['epix_2/ROI_0_area']
-        self.friendly_name_epix=['epix']
-        self.angle=0.0
-        self.end_index=None
-        self.start_index=0
-        self.transpose=False
-        self.lxt_key='lxt_ttc'
-        self.import_roi=None
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
-        self.patch_mode='average'
-        self.arbitrary_filter=False
-        self.hitfind=False
+
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
