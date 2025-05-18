@@ -58,6 +58,7 @@ class BatchAnalysis:
         self.patch_mode='average'
         self.arbitrary_filter=False
         self.hitfind=False
+        
     def aggregate_statistics(self):
         aggregated_stats = defaultdict(lambda: defaultdict(int))
         
@@ -379,20 +380,16 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
         analysis=XESAnalysis()
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         if self.arbitrary_filter:
             f.set_arbitrary_filter()
             analysis.union_shots(f,'epix',['xray','arbitrary_filter'],new_key=False)
         else:
-            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
-
-
-
-        
+            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)     
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
 
-
-        for fil in self.filters:
-            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
+  
         if self.hitfind:
             from XSpect.XSpect_Processor import HitFinding
             f.update_status(f'Starting hit finding')
@@ -403,8 +400,6 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             f.run_shots['XES_Hits']=len(hits)
             f.sum_images=sum_images
         analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
-        
-
         if self.transpose:
             f.epix=np.transpose(f.epix)
         analysis.pixels_to_patch=self.pixels_to_patch     
@@ -412,15 +407,74 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         if self.angle!=0:
             #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
             f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
-        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
 
-        #analysis.reduce_detector_shots(f,'epix_ROI_1')
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots']
+        analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
+        self.keys_to_save.extend(['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots'])
 
         f.purge_all_keys(self.keys_to_save)
         #analysis.make_energy_axis(f,f.epix.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
-  
+    
+    def primary_analysis_static_laser(self, run, experiment, verbose=False, start_index=None, end_index=None):
+        if end_index is None:
+            end_index = self.end_index
+        if start_index is None:
+            try:
+                start_index = self.start_index
+            except AttributeError:
+                start_index = 0
+    
+        f = spectroscopy_run(experiment, run, verbose=verbose, start_index=start_index, end_index=end_index)
+        f.load_run_keys(self.keys, self.friendly_names)
+        f.load_run_key_delayed(self.key_epix, self.friendly_name_epix, rois=self.import_roi)
+        f.get_run_shot_properties()
+    
+        analysis = XESAnalysis()
+        for fil in self.filters:
+            analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+        ##arbitrary filters can't work because it calls union shots. which lowers the size of the epix shot array. then mismatches xray laser array
+        #if self.arbitrary_filter:
+        #    f.set_arbitrary_filter()
+        #    analysis.union_shots(f, 'epix', ['xray', 'arbitrary_filter'], new_key=False)
+        #else:
+            #analysis.union_shots(f, 'epix', ['xray', 'xray'], new_key=False)
+        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
+        
+        # Laser specific logic
+        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
+        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
+    
+        self.keys_to_save.extend(['epix_simultaneous_laser_ROI_1', 'epix_xray_not_laser_ROI_1'])
+    
+
+        # Ensure 'epix', 'epix_simultaneous_laser', and 'epix_xray_not_laser' go through the same steps
+        for key in ['epix', 'epix_simultaneous_laser', 'epix_xray_not_laser']:
+            if self.hitfind:
+                from XSpect.XSpect_Processor import HitFinding
+                f.update_status(f'Starting hit finding')
+                hits, mean_sum, std_sum, threshold, sum_images = HitFinding.basic_detect(getattr(f, key), cutoff_multiplier=1, absolute_threshold=100)
+                f.update_status(f'Hit finding on {key}. Hits found: {str(len(hits))}, median: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+                setattr(f, key, getattr(f, key)[hits])
+                f.update_status(f'Applying Hits to {key} detector. New size {str(np.shape(getattr(f, key))[0])}')
+                f.run_shots[f'XES_Hits_{key}'] = len(hits)
+                f.sum_images = sum_images
+
+            analysis.reduce_detector_shots(f, key, purge=False, new_key=False)
+    
+            if self.transpose:
+                setattr(f, key, np.transpose(getattr(f, key)))
+    
+            analysis.pixels_to_patch = self.pixels_to_patch
+            analysis.patch_pixels(f, key, axis=0, mode=self.patch_mode)
+    
+            if self.angle != 0:
+                setattr(f, key, rotate(getattr(f, key), angle=self.angle, axes=[0, 1]))
+            analysis.reduce_detector_spatial(f, key, rois=self.rois, combine=True, purge=False)
+    
+        self.keys_to_save.extend(['start_index', 'end_index', 'run_file', 'run_number', 'verbose', 'status', 'status_datetime', 'epix_ROI_1', 'sum_images', 'epix', 'all_epix', 'run_shots'])
+        f.purge_all_keys(self.keys_to_save)
+        return f
+        
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
         if end_index==None:
             end_index=self.end_index
