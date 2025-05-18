@@ -393,7 +393,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         if self.hitfind:
             from XSpect.XSpect_Processor import HitFinding
             f.update_status(f'Starting hit finding')
-            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1)
             f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
             f.epix=f.epix[hits]
             f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
