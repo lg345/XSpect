@@ -263,6 +263,7 @@ class spectroscopy_run:
             List of keys to retain.
         """
                 
+        keys_to_keep = set(keys_to_keep)  # Remove duplicates by converting to a set
         new_dict = {attr: value for attr, value in self.__dict__.items() if attr in keys_to_keep}
         self.__dict__ = new_dict
         
