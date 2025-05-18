@@ -58,7 +58,7 @@ class SpectroscopyVisualization:
         factor = 1.2398e4
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
         
-        self.energy=xaxis[:]
+        self.energy=xaxis[::-1]
         
 class XESVisualization(SpectroscopyVisualization):
     def __init__(self):
@@ -147,7 +147,7 @@ class XESVisualization(SpectroscopyVisualization):
         y=self.background_subtracted
         x=self.energy
         mask = (x >= low) & (x <= high)
-        area = np.trapz(y[mask], x[mask])
+        area = np.abs(np.trapz(y[mask], x[mask]))
         if area == 0:
             raise ValueError("The area for normalization is zero, normalization cannot be performed.")
         normalized_y = y / area
