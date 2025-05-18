@@ -33,6 +33,31 @@ class BatchAnalysis:
         self.run_shots = {}
         self.run_shot_ranges = {}
         self.analyzed_runs = []
+        
+        self.xes_line='kbeta'
+        self.pixels_to_patch=[351,352,529,530,531]
+        self.crystal_detector_distance=50.6
+        self.crystal_d_space=0.895
+        self.crystal_radius=250
+        self.adu_cutoff=3.0
+        self.rois=[[0,None]]
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+        self.key_epix=['epix_2/ROI_0_area']
+        self.friendly_name_epix=['epix']
+        self.angle=0.0
+        self.end_index=None
+        self.start_index=0
+        self.transpose=False
+        self.lxt_key='lxt_ttc'
+        self.import_roi=None
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        self.patch_mode='average'
+        self.arbitrary_filter=False
+        self.hitfind=False
     def aggregate_statistics(self):
         aggregated_stats = defaultdict(lambda: defaultdict(int))
         
@@ -266,30 +291,7 @@ def analyze_single_run(args):
 class XESBatchAnalysis(BatchAnalysis):
     def __init__(self):
         super().__init__()
-        self.xes_line='kbeta'
-        self.pixels_to_patch=[351,352,529,530,531]
-        self.crystal_detector_distance=50.6
-        self.crystal_d_space=0.895
-        self.crystal_radius=250
-        self.adu_cutoff=3.0
-        self.rois=[[0,None]]
-        self.mintime=-2.0
-        self.maxtime=10.0
-        self.numpoints=240
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        self.filters=[]
-        self.key_epix=['epix_2/ROI_0_area']
-        self.friendly_name_epix=['epix']
-        self.angle=0.0
-        self.end_index=None
-        self.start_index=0
-        self.transpose=False
-        self.lxt_key='lxt_ttc'
-        self.import_roi=None
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
-        self.patch_mode='average'
-        self.arbitrary_filter=False
-        self.hitfind=False
+
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -434,15 +436,33 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.load_run_keys(self.keys,self.friendly_names)
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
-
         analysis=XESAnalysis()
         analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
+
+        if self.hitfind:
+            from XSpect.XSpect_Processor import HitFinding
+            f.update_status(f'Starting hit finding')
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median intensity: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+            f.epix=f.epix[hits]
+            f.xray=f.xray[hits]
+            f.laser=f.laser[hits]
+            f.simultaneous=np.logical_and(f.xray,f.laser)
+            f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
+            for name in self.friendly_names:
+                setattr(f, name,getattr(f,name)[hits])
+            f.run_shots['XES_Hits']=len(hits)
+            f.sum_images=sum_images
+
+
+
+
         #analysis.patch_pixels(f,'epix',axis=1)
         if self.angle!=0:
             f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
         for fil in self.filters:
-            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])    
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
@@ -454,7 +474,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
         analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
         analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
-        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
+        keys_to_save=['start_index','end_index','run_file','run_number','run_shots','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
         f.purge_all_keys(keys_to_save)
         analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f

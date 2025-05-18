@@ -487,8 +487,8 @@ class SpectroscopyAnalysis:
             delays = np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
         else:
             delays = np.array(getattr(run,lxt_key)).flatten()*1.0e12 + np.array((getattr(run,fast_delay_key))).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
-        delays=np.array(getattr(run,fast_delay_key)).flatten()+np.array(getattr(run,tt_correction_key)).flatten()
-        #print(str(delays))
+        delays=np.array(getattr(run,fast_delay_key)).flatten()*1.0e12+np.array(getattr(run,tt_correction_key)).flatten()
+        #print(str(delays)) 
         run.delays=delays
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
