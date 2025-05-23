@@ -139,26 +139,37 @@ class diagnostics(plotting):
         self.exp = exp
         self.keys = keys
         self.friendly_names = friendly_names
-        
-        #fpath = '/sdf/data/lcls/ds/{}/{}/hdf5/smalldata/'.format(self.exp[:3], self.exp)
-        #f = fpath + '{}_Run{:04d}.h5'.format(self.exp, self.run)
         self.filepath = '/sdf/data/lcls/ds/{}/{}/hdf5/smalldata/'.format(self.exp[:3], self.exp) + '{}_Run{:04d}.h5'.format(self.exp, self.run)
-        self.h5 = h5py.File(self.filepath)
-        print('Run {} imported'.format(self.run))
-        
+
         ## generate a dictionary for the supplied keys/friendly names
         
         self.datadict = {}
         for key, name in zip(keys, friendly_names):
             self.datadict[name] = key
 
+        ## read h5 file
+        self.h5 = h5py.File(self.filepath)
+        print('Run {} imported'.format(self.run))
+        
         ## create list of all group/datasets keys
 
         self.allgroupsdatasetskeys = []
         def getnames(item):
             self.allgroupsdatasetskeys.append(item)
-        self.h5.visit(getnames)    
-            
+        self.h5.visit(getnames)
+    
+    def read_H5(self):
+
+        ## read h5 file
+        self.h5 = h5py.File(self.filepath)
+        print('Run {} imported'.format(self.run))
+        
+        ## create list of all group/datasets keys
+
+        self.allgroupsdatasetskeys = []
+        def getnames(item):
+            self.allgroupsdatasetskeys.append(item)
+        self.h5.visit(getnames)
         
     def load_run_keys(self, metadata = False):
         
