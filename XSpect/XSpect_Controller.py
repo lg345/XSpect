@@ -407,7 +407,6 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         if self.angle!=0:
             #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
             f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
-
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
         self.keys_to_save.extend(['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots'])
 
