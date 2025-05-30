@@ -58,7 +58,7 @@ class SpectroscopyVisualization:
         factor = 1.2398e4
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
         
-        self.energy=xaxis[:]
+        self.energy=xaxis[::-1]
         
 class XESVisualization(SpectroscopyVisualization):
     def __init__(self):
@@ -131,7 +131,7 @@ class XESVisualization(SpectroscopyVisualization):
         plt.ylabel('Energy (keV)')
         setattr(xes_analysis,'difference_spectrum',difference_spectrum)
 
-    def normalize_spectrum(self, low, high):
+    def normalize_spectrum(self, low, high,y=None):
         """
         Normalize the spectrum (x, y) to unity based on the specified range [low, high].
 
@@ -141,19 +141,22 @@ class XESVisualization(SpectroscopyVisualization):
         low (float): Lower bound of the energy range for normalization.
         high (float): Upper bound of the energy range for normalization.
         
+        
         Returns:
         np.ndarray: Normalized intensity values.
         """
-        y=self.background_subtracted
+        if not isinstance(y, np.ndarray):
+            y=self.background_subtracted
         x=self.energy
         mask = (x >= low) & (x <= high)
-        area = np.trapz(y[mask], x[mask])
+        area = np.abs(np.trapz(y[mask], x[mask]))
         if area == 0:
             raise ValueError("The area for normalization is zero, normalization cannot be performed.")
         normalized_y = y / area
         setattr(self,'normalized',normalized_y)
+        return normalized_y
     
-    def normalize_peak(self, low, high):
+    def normalize_peak(self, low, high,y=None):
         """
         Normalize the spectrum (x, y) to unity based on the specified range [low, high].
 
