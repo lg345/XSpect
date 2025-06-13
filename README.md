@@ -1,5 +1,4 @@
 # XSpecT  
-
 ## Installation  
 
 Clone the repository:
