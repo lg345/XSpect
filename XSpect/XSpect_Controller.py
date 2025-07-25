@@ -740,6 +740,7 @@ class ScanAnalysis_1D_XES(BatchAnalysis):
         analysis=XESAnalysis()
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
+        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
         #f.ccm_bins=f.ccm
         analysis.bin_uniques(f,'scan')
         analysis.union_shots(f,'epix',['simultaneous','laser'])
@@ -753,6 +754,9 @@ class ScanAnalysis_1D_XES(BatchAnalysis):
 
         analysis.reduce_det_scanvar(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
         analysis.reduce_det_scanvar(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
+        analysis.reduce_det_scanvar(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
+        analysis.reduce_det_scanvar(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
 
 
         return f
+
