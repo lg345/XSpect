@@ -161,7 +161,7 @@ class spectroscopy_run:
                 try:
                     setattr(self, name, np.array(fh[key][self.start_index:self.end_index]))
                 except KeyError as e:
-                    self.update_status('Key does not exist: %s' % e.args[0])
+                    self.update_status(f'{key} Key does not exist: {e.args[0]}')
                 except MemoryError:
                     setattr(self, name, fh[key])
                     self.update_status('Out of memory error while loading key: %s. Not converted to np.array.' % key)
@@ -217,7 +217,7 @@ class spectroscopy_run:
                     setattr(self, name, np.transpose(data, axes=(1, 2)))
 
             except KeyError as e:
-                self.update_status(f'Key does not exist: {e.args[0]}')
+                self.update_status(f'{key} Key does not exist: {e.args[0]}')
             except MemoryError:
                 setattr(self, name, fh[key][self.start_index:self.end_index, :, :])
                 self.update_status(f'Out of memory error while loading key: {key}. Not converted to np.array.')
@@ -803,10 +803,10 @@ class XESAnalysis(SpectroscopyAnalysis):
     def reduce_det_scanvar(self, run, detector_key, scanvar_key, scanvar_bins_key):
         """
         Reduce detector data by binning according to an arbitrary scan variable.
-
+    
         This method bins the detector data based on a specified scan variable and its corresponding bins. 
         The result is stored in the `run` object under a new attribute.
-
+    
         Parameters
         ----------
         run : object
@@ -817,7 +817,7 @@ class XESAnalysis(SpectroscopyAnalysis):
             The key corresponding to the scan variable indices.
         scanvar_bins_key : str
             The key corresponding to the scan variable bins.
-
+    
         Returns
         -------
         None
@@ -826,21 +826,23 @@ class XESAnalysis(SpectroscopyAnalysis):
     
         detector = getattr(run, detector_key)
         
-        scanvar_indices = getattr(run, scanvar_key)  # Shape: (4509,)
-        scanvar_bins=getattr(run, scanvar_bins_key)
+        scanvar_indices = getattr(run, scanvar_key)  # Shape: (shots,)
+        scanvar_bins = getattr(run, scanvar_bins_key)
         
         n_bins = len(scanvar_bins)  # Number of bins
-
-        # Initialize reduced_array with the correct shape (number of bins, 699, 50)
-        reduced_array = np.zeros((n_bins, detector.shape[1], detector.shape[2]))
-
-        # Iterate over the images and accumulate them into reduced_array based on timing_indices
+    
+        # Initialize reduced_array with the correct shape for arbitrary dimensions
+        # Shape will be (n_bins, *detector.shape[1:])
+        reduced_shape = (n_bins,) + detector.shape[1:]
+        reduced_array = np.zeros(reduced_shape)
+    
+        # Iterate over the shots and accumulate them into reduced_array based on scanvar_indices
         for i in range(detector.shape[0]):
             np.add.at(reduced_array, (scanvar_indices[i],), detector[i])
-
-        # Store the reduced_array in the object, replace 'key_name' with the actual key
-        setattr(run,  f"{detector_key}_scanvar_reduced", reduced_array)
-
+    
+        # Store the reduced_array in the object
+        setattr(run, f"{detector_key}_scanvar_reduced", reduced_array)
+    
         # Update status
         run.update_status(f'Detector binned in time into key: {detector_key}_scanvar_reduced')
 
