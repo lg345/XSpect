@@ -97,7 +97,7 @@ class XESVisualization(SpectroscopyVisualization):
             
             print('Warning this dark will be based on ALL shots below a time index.')
             analysis.normalize_xes(self,'summed_laser_off')
-            self.summed_laser_off_normalized=np.nanmean((self.summed_laser_off_normalized[:dark_cutoff,:]+self.summed_laser_on_normalized[:dark_cutoff,:])/2,axis=0)
+            self.summed_laser_off_normalized = np.nanmean((self.summed_laser_off_normalized[:dark_cutoff,:]+self.summed_laser_on_normalized[:dark_cutoff,:])/2,axis=0)
             #self.summed_laser_off_normalized=np.nanmean(self.summed_laser_off_normalized,axis=0)
             self.summed_laser_off_normalized=np.tile(self.summed_laser_off_normalized, (np.shape(self.summed_laser_on_normalized)[0], 1))
         xes_analysis.summed_laser_on_normalized=self.summed_laser_on_normalized

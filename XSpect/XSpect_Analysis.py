@@ -129,12 +129,20 @@ class spectroscopy_run:
         Retrieves shot properties from the run file, including total shots and simultaneous laser and X-ray shots.
         """
         with h5py.File(self.run_file, 'r') as fh:
-            self.total_shots = fh['lightStatus/xray'][self.start_index:self.end_index].shape[0]
-            xray_total = np.sum(fh['lightStatus/xray'][self.start_index:self.end_index])
-            laser_total = np.sum(fh['lightStatus/laser'][self.start_index:self.end_index])
-            self.xray = np.array(fh['lightStatus/xray'][self.start_index:self.end_index])
-            self.laser = np.array(fh['lightStatus/laser'][self.start_index:self.end_index])
-            self.simultaneous=np.logical_and(self.xray,self.laser)
+            if self.end_index == -1:
+                self.total_shots = fh['lightStatus/xray'][self.start_index:].shape[0]
+                xray_total = np.sum(fh['lightStatus/xray'][self.start_index:])
+                laser_total = np.sum(fh['lightStatus/laser'][self.start_index:])
+                self.xray = np.array(fh['lightStatus/xray'][self.start_index:])
+                self.laser = np.array(fh['lightStatus/laser'][self.start_index:])
+                self.simultaneous=np.logical_and(self.xray,self.laser)
+            else:
+                self.total_shots = fh['lightStatus/xray'][self.start_index:self.end_index].shape[0]
+                xray_total = np.sum(fh['lightStatus/xray'][self.start_index:self.end_index])
+                laser_total = np.sum(fh['lightStatus/laser'][self.start_index:self.end_index])
+                self.xray = np.array(fh['lightStatus/xray'][self.start_index:self.end_index])
+                self.laser = np.array(fh['lightStatus/laser'][self.start_index:self.end_index])
+                self.simultaneous=np.logical_and(self.xray,self.laser)
             
         self.run_shots={'Total':self.total_shots,'X-ray Total':xray_total,'Laser Total':laser_total}
         self.update_status('Obtained shot properties')
@@ -159,7 +167,10 @@ class spectroscopy_run:
             for key, name in zip(keys, friendly_names):
                 
                 try:
-                    setattr(self, name, np.array(fh[key][self.start_index:self.end_index]))
+                    if self.end_index == -1:
+                        setattr(self, name, np.array(fh[key][self.start_index:]))
+                    else:
+                        setattr(self, name, np.array(fh[key][self.start_index:self.end_index]))
                 except KeyError as e:
                     self.update_status('Key does not exist: %s' % e.args[0])
                 except MemoryError:
@@ -192,7 +203,10 @@ class spectroscopy_run:
         for key, name in zip(keys, friendly_names):
             try:
                 # Load the data from the file for the given key
-                data = fh[key][self.start_index:self.end_index, :, :]
+                if self.end_index == -1:
+                    data = fh[key][self.start_index:, :, :]
+                else:
+                    data = fh[key][self.start_index:self.end_index, :, :]
 
                 # Apply one-dimensional ROIs if specified
                 if rois is not None:
@@ -204,6 +218,7 @@ class spectroscopy_run:
                             mask[start_col:end_col] = True
                         # Apply the mask to select the ROI from the third dimension
                         data = data[:, :, mask]
+                        setattr(self, f"{name}_ROI_1", data)
                     else:
                         # Handle each ROI separately, storing the results as different attributes
                         for idx, roi in enumerate(rois):
@@ -219,7 +234,10 @@ class spectroscopy_run:
             except KeyError as e:
                 self.update_status(f'Key does not exist: {e.args[0]}')
             except MemoryError:
-                setattr(self, name, fh[key][self.start_index:self.end_index, :, :])
+                if self.end_index == -1:
+                    setattr(self, name, fh[key][self.start_index:, :, :])
+                else:
+                    setattr(self, name, fh[key][self.start_index:self.end_index, :, :])
                 self.update_status(f'Out of memory error while loading key: {key}. Not converted to np.array.')
 
         end = time.time()
@@ -320,10 +338,17 @@ class SpectroscopyAnalysis:
         count_before=np.sum(shot_mask)
         filter_mask=getattr(run,filter_key)
         nan_mask = np.isnan(filter_mask)
-        filtered_shot_mask=shot_mask * (filter_mask>threshold)* (~nan_mask)
+        if isinstance(threshold, int) or isinstance(threshold, float):
+            filtered_shot_mask=shot_mask * (filter_mask>threshold)* (~nan_mask)
+        elif len(threshold) == 2:
+            filtered_shot_mask=shot_mask * (filter_mask>threshold[0])* (filter_mask<threshold[1])* (~nan_mask)
         count_after=np.sum(filtered_shot_mask)
         setattr(run,shot_mask_key,filtered_shot_mask)
-        run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold,count_before-count_after))
+        
+        if isinstance(threshold, int) or isinstance(threshold, float):
+            run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold,count_before-count_after))
+        elif len(threshold) == 2:
+            run.update_status('Mask: %s has been filtered on %s by minimum threshold: %0.3f and maximum threshold: %0.3f\nShots removed: %d' % (shot_mask_key,filter_key,threshold[0], threshold[1],count_before-count_after))
     
     def filter_nan(self, run,shot_mask_key, filter_key='ipm'):
         """
@@ -397,6 +422,105 @@ class SpectroscopyAnalysis:
         for detector_key in keys:
             setattr(run, detector_key, None)
             run.update_status(f"Purged key to save room: {detector_key}")
+
+    def droplet_reconstruction(self, run, detector_key, detector_friendly_name, rois=None, shot_range = [0, None]):
+        """
+        Will reconstruct detector images per shot from droplet analysis if contained in detector key of hdf5 file.
+        If ROIs are specified - will only reconstruct ROI images per shot.
+        If no ROIs are specified, will reconstruct full detector image per shot.
+        """
+        start = time.time()
+        
+        fh = h5py.File(run.run_file, 'r')
+        
+        try:
+            detector_group = detector_key[0].split('/')[0]
+    
+            nDroplets_total = np.array(fh[detector_group]['droplet_nDroplets'])
+            nDroplets = nDroplets_total[shot_range[0]:shot_range[1]]
+    
+            indx_start = np.nansum(nDroplets_total[0:shot_range[0]])
+            indx_end = np.nansum(nDroplets_total[0:shot_range[1]])
+    
+            cols = np.array(fh[detector_group]['var_droplet_sparse']['col'])[indx_start:indx_end]
+            rows = np.array(fh[detector_group]['var_droplet_sparse']['row'])[indx_start:indx_end]
+            data = np.array(fh[detector_group]['var_droplet_sparse']['data'])[indx_start:indx_end]
+
+        except:
+            pass
+
+        rows_indx, cols_indx = rows - 1, cols - 1
+        rows_indx, cols_indx = rows_indx.astype(int), cols_indx.astype(int)
+        
+        if rois != None:
+
+            ROI_dict = {}
+
+            for i, ROI in enumerate(rois):
+                ROIstr = 'ROI_%i' % (i+1)
+                ROI_len = ROI[1] - ROI[0]
+                ROI_dict[ROIstr] = np.zeros((nDroplets.shape[0], 702, ROI_len))
+
+                ndrops_ROI = np.zeros_like(nDroplets)
+
+                ROImask = (cols_indx >= ROI[0]) & (cols_indx < ROI[1])
+
+                rows_indx_ROI = rows_indx[ROImask]
+                cols_indx_ROI = cols_indx[ROImask]
+                data_ROI = data[ROImask]
+
+                start_indx = 0
+                for ii, ndrops in enumerate(nDroplets):
+                    if ii == 0:
+                        indices_per_shot = np.arange(ndrops)
+
+                    else:
+                        indices_per_shot = np.arange(start_indx, start_indx + ndrops, 1)
+
+                    ndrops_ROI[ii] = np.sum(ROImask[start_indx:(start_indx + ndrops)])
+
+                    if ndrops > 0:
+                        start_indx = indices_per_shot[-1]+1
+
+                start_indx = 0
+                for iii, ndrops in enumerate(ndrops_ROI):
+                    if iii == 0:
+                        indices_per_shot = np.arange(ndrops)
+
+                    else:
+                        indices_per_shot = np.arange(start_indx, start_indx + ndrops, 1)
+
+                    for j in indices_per_shot:
+                        ROI_dict[ROIstr][iii, rows_indx_ROI[j], (cols_indx_ROI[j] - ROI[0])] = data_ROI[j]
+
+                    if ndrops > 0:
+                        start_indx = indices_per_shot[-1]+1
+
+                setattr(run, f"{detector_friendly_name[0]}_{ROIstr}", ROI_dict[ROIstr])
+                
+        else:
+            
+            data_reconstructed = np.zeros((nDroplets.shape[0], 702, 766))
+
+            start_indx = 0
+            for i, ndrops in enumerate(nDroplets):
+                if i == 0:
+                    indices_per_shot = np.arange(ndrops)
+
+                else:
+                    indices_per_shot = np.arange(start_indx, start_indx + ndrops, 1)
+
+                for j in indices_per_shot:
+                    data_reconstructed[i, rows_indx[j], cols_indx[j]] = data[j]
+
+                if ndrops > 0:
+                    start_indx = indices_per_shot[-1]+1
+
+            setattr(run, detector_friendly_name[0], data_reconstructed)
+
+        end = time.time()
+        run.update_status(f'Droplet reconstruction completed. Time: {end - start:.02f} seconds')
+        
     
     def reduce_detector_shots(self, run, detector_key,reduction_function=np.sum,  purge=True,new_key=False):
         detector = getattr(run, detector_key)
@@ -410,6 +534,36 @@ class SpectroscopyAnalysis:
         if purge:
             setattr(run, detector_key,None)
             run.update_status(f"Purged key to save room: {detector_key}")
+
+    def apply_roi(self, run, detector_key, shot_range = [0, None], rois = [[0, None]], combine = True):
+        detector = getattr(run, detector_key)
+        if combine:
+            
+            roi_combined = [rois[0][0], rois[-1][1]]  # Combined ROI spanning the first and last ROI
+            mask = np.zeros(detector.shape[-1], dtype=bool)
+            for roi in rois:
+                mask[roi[0]:roi[1]] = True
+            if detector.ndim==3:
+                masked_data = detector[shot_range[0]:shot_range[1], :, :][:, :, mask]
+            elif detector.ndim==2:
+                masked_data = detector[:, mask]
+            elif detector.ndim==1:
+                masked_data = detector[mask]
+            roi_indices = ', '.join([f"{roi[0]}-{roi[1]}" for roi in rois])
+            run.update_status(f"Applied ROIs to detector: {detector_key} with combined ROI indices: {roi_indices}")
+            setattr(run, f"{detector_key}_ROI_1", masked_data)
+        else:
+            for idx, roi in enumerate(rois):
+                # print(roi)
+                data_chunk = detector[shot_range[0]:shot_range[1], :, roi[0]:roi[1]]
+                
+                if roi[1] is None:
+                    roi[1] = detector.shape[1] - 1
+                    
+                run.update_status(f"Applied ROIs to detector: {detector_key} with ROI: {roi[0]}, {roi[1]}")
+                # print(data_chunk.shape)
+                setattr(run, f"{detector_key}_ROI_{idx+1}", data_chunk)
+        
     
     def reduce_detector_spatial(self, run, detector_key, shot_range=[0, None], rois=[[0, None]], reduction_function=np.sum,  purge=True, combine=True):
         """
@@ -452,7 +606,7 @@ class SpectroscopyAnalysis:
         else:
             for idx, roi in enumerate(rois):
                 data_chunk = detector[shot_range[0]:shot_range[1], roi[0]:roi[1]]
-                reduced_data = reduction_function(data_chunk, **kwargs)
+                reduced_data = reduction_function(data_chunk, axis = -1)
             if roi[1] is None:
                 roi[1] = detector.shape[1] - 1
                 run.update_status(f"Spatially reduced detector: {detector_key} with ROI: {roi[0]}, {roi[1]}")
@@ -485,15 +639,48 @@ class SpectroscopyAnalysis:
         #print( str(getattr(run,tt_correction_key)))
         #print( str(getattr(run,fast_delay_key)+getattr(run,tt_correction_key)))
         if lxt_key==None:
-            delays = np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
+            delays = getattr(run,fast_delay_key) + getattr(run,tt_correction_key)
         else:
-            delays = np.array(getattr(run,lxt_key)).flatten()*1.0e12 + np.array((getattr(run,fast_delay_key))).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
-        delays=np.array(getattr(run,fast_delay_key)).flatten()*1.0e12+np.array(getattr(run,tt_correction_key)).flatten()
+            delays = getattr(run,lxt_key)*1.0e12 + getattr(run,fast_delay_key) + getattr(run,tt_correction_key)
+
         #print(str(delays)) 
         run.delays=delays
         run.time_bins=bins
-        run.timing_bin_indices=np.digitize(run.delays, bins)[:]
+        run.time_bins_centered, run.timing_bin_indices = self.center_binning(delays, run.time_bins)
+        run.timing_bin_indices = run.timing_bin_indices - 1
+        
         run.update_status('Generated timing bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+
+    def center_binning(self, data2bin, binlist):
+        """
+        np.digitize will take a list of bins and bin an array using the list as bin edges.
+        This function takes a list of bins (for example, time or energy) and creates a new set 
+        of bin edges such that the given binlist (that will become time or energy axis)
+        represents central values of the bins and then bin the desired data that way
+        
+        Parameters
+        ----------
+        data2bin : array
+            Array of data to bin (delay or ccm data)
+        binlist : array
+            The desired set of bins you want to bin the data over
+        """
+        bin_addon = (binlist[-1] - binlist[-2])/2
+        binlist_expanded = np.append(binlist, binlist[-1] + bin_addon)
+        binlist_centered = np.empty_like(binlist_expanded)
+
+        for ii in np.arange(binlist.shape[0]):
+            if ii == 0:
+                binlist_centered[ii] = binlist_expanded[ii] - (binlist_expanded[ii+1] - binlist_expanded[ii])/2
+            else:
+                binlist_centered[ii] = binlist_expanded[ii] - (binlist_expanded[ii] - binlist_expanded[ii-1])/2
+
+                binlist_centered[-1] = binlist_expanded[-1]
+
+        data_binned = np.digitize(data2bin, bins = binlist_centered)
+
+        return binlist_centered, data_binned
+        
     def union_shots(self, run, detector_key, filter_keys,new_key=True):
         """
         Combines shots across multiple filters into a single array. 
@@ -521,7 +708,7 @@ class SpectroscopyAnalysis:
         else:
             target_key=detector_key
         setattr(run, target_key, filtered_detector)
-        run.update_status('Shots combined for detector %s on filters: %s and %s into %s'%(detector_key, filter_keys[0],filter_keys[1],target_key))
+        run.update_status('Shots (%d) combined for detector %s on filters: %s and %s into %s'%(np.sum(mask), detector_key, filter_keys[0],filter_keys[1],target_key))
         
     def separate_shots(self, run, detector_key, filter_keys):
         """
@@ -547,7 +734,7 @@ class SpectroscopyAnalysis:
             mask = getattr(run, filter_keys)
         filtered_detector = detector[mask]
         setattr(run, detector_key + '_' +filter_keys[0]+'_not_'+filter_keys[1], filtered_detector)
-        run.update_status('Shots (%d) separated for detector %s on filters: %s and %s into %s'%(np.sum(mask),detector_key,filter_keys[0],filter_keys[1],detector_key + '_' + '_'.join(filter_keys)))
+        run.update_status('Shots (%d) separated for detector %s on filters: %s and %s into %s'%(np.sum(mask),detector_key,filter_keys[0],filter_keys[1],detector_key + '_' +filter_keys[0]+'_not_'+filter_keys[1]))
     
     def reduce_detector_temporal(self, run, detector_key, timing_bin_key_indices,average=False):
         """
@@ -566,13 +753,14 @@ class SpectroscopyAnalysis:
         """
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
-        expected_length = len(run.time_bins)+1
+        expected_length = len(run.time_bins)
         if len(detector.shape) < 2:
             reduced_array = np.zeros((expected_length))
         elif len(detector.shape) < 3:
             reduced_array = np.zeros((expected_length, detector.shape[1]))
         elif len(detector.shape) == 3:
             reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
+        reduced_std = reduced_array
 
         counts = np.bincount(indices)
         if average:
@@ -580,7 +768,12 @@ class SpectroscopyAnalysis:
             reduced_array /= counts[:, None]
         else:
             np.add.at(reduced_array, indices, detector)
+
+        for i in np.arange(expected_length):
+            reduced_std[i] = np.nansum(detector[indices == i][:], axis = 0)
         setattr(run, detector_key+'_time_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
         run.update_status('Detector %s binned in time into key: %s from detector shape: %s to reduced shape: %s'%(detector_key,detector_key+'_time_binned', detector.shape,reduced_array.shape) )
     def patch_pixels(self,run,detector_key,  mode='average', patch_range=4, deg=1, poly_range=6,axis=1):
         """
@@ -771,10 +964,17 @@ class XESAnalysis(SpectroscopyAnalysis):
             The pixel range to sum over for normalization (default is [300, 550]).
         """
         detector = getattr(run, detector_key)
-        row_sum = np.sum(detector[:, pixel_range[0]:pixel_range[1]], axis=1)
+   
+        row_sum = np.nansum(detector[:, pixel_range[0]:pixel_range[1]], axis=1)
         normed_main = np.divide(detector, row_sum[:,np.newaxis])
         setattr(run, detector_key+'_normalized', normed_main)
-    def make_energy_axis(self, run,energy_axis_length, A, R,  mm_per_pixel=0.05, d=0.895):
+        try:
+            std = getattr(run, detector_key + '_std')
+            normed_std = np.divide(std, row_sum[:,np.newaxis])
+            setattr(run, detector_key + '_normalized_std', normed_std)
+        except:
+            pass 
+    def make_energy_axis(self, run, energy_axis_length, A, R, mm_per_pixel=0.05, d=0.895, name=None):
         """
         Determination of energy axis by pixels and crystal configuration
 
@@ -796,9 +996,13 @@ class XESAnalysis(SpectroscopyAnalysis):
         ll = gl / 2 - (np.amax(gl) - np.amin(gl)) / 4
         factor = 1.2398e4
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
-        
-        setattr(run,self.xes_line+'_energy',xaxis[::-1])
-        run.update_status('XES energy axis generated for %s'%(self.xes_line))
+
+        if name is not None:
+            setattr(run, name+'_energy', xaxis[::-1])
+        else:
+            name = self.xes_line
+            setattr(run,name+'_energy',xaxis[::-1])
+        run.update_status('XES energy axis generated for %s'%(name))
 
     def reduce_det_scanvar(self, run, detector_key, scanvar_key, scanvar_bins_key):
         """
@@ -974,6 +1178,7 @@ class XASAnalysis(SpectroscopyAnalysis):
         time_bins=run.time_bins
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         reduced_array = np.zeros(np.shape(time_bins)[0]+1)
+        print(reduced_array.shape)
         np.add.at(reduced_array, timing_indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
@@ -995,3 +1200,46 @@ class XASAnalysis(SpectroscopyAnalysis):
         bins=getattr(run,ccm_bins_key)
         run.ccm_bin_indices=np.digitize(ccm, bins)
         run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+
+class vonHamos:
+    def __init__(self):
+        pass
+
+    def dspacing_cubic(self, a, h, k, l):
+        d = a/(np.sqrt(h**2 + k**2 + l**2))
+        return d
+
+    def dspacing_hexagonal(self, a, c, h, k, l):
+        d = np.sqrt(1/((4/3)*((h**2 + h*k + k**2)/(a**2)) + (l**2)/(c**2)))
+        return d
+               
+    def dspacing(self, crystal, h, k, l):
+        if crystal == 'Si':
+            a = 5.430986 # Angstrom
+            d = self.dspacing_cubic(a, h, k, l)
+        elif crystal == 'Ge':
+            a = 5.65774 # Angstrom
+            d = self.dspacing_cubic(a, h, k, l)
+        elif crystal == 'LiNbO3':
+            a = 5.148 # Angstrom
+            c = 13.863 # Angstrom
+            d = self.dspacing_hexagonal(a, c, h, k, l)
+        return d
+
+    def bragg2eV(self, bragg_angle, dspacing):
+        conversion_factor = 12398.419 # eV - Angstrom
+        energy = conversion_factor/(2*dspacing*np.sin(np.deg2rad(bragg_angle))) # eV
+        return energy
+
+    def eV2bragg(self, energy, dspacing):
+        conversion_factor = 12398.419 # eV - Angstrom
+        bragg_angle = np.rad2deg(np.arcsin(conversion_factor/(energy*2*dspacing)))
+        return bragg_angle
+
+    def vH_energy_axis(self, avg_detector_distance, spectrum_length, crystal, h, k, l, crystal_radius, pixel_width = 0.05):
+        conversion_factor = 12398.419 # eV - Angstrom
+        n_pix = np.arange(spectrum_length) # pixel index
+        d_rel = n_pix*pixel_width - (np.max(n_pix*pixel_width) - np.min(n_pix*pixel_width))/2 # relative distance from center of detector
+        dspacing = self.dspacing(crystal, h, k, l)
+        energy = conversion_factor/(2*dspacing*np.sin(np.arctan((2*crystal_radius)/(d_rel + avg_detector_distance))))
+        return energy

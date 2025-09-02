@@ -49,7 +49,8 @@ class plotting:
         ax.set_title(plt_title, fontsize = 14, fontweight = 'bold')
         ax.set_xlabel(xlabel)
         ax.set_ylabel('Counts')
-        ax.legend(title = leg_title)
+        if thres.size > 0:
+            ax.legend(title = leg_title)
         ax.set_yscale(yscale)
         
         for axis in ['top', 'bottom', 'left', 'right']:
@@ -105,7 +106,7 @@ class plotting:
             for axis in ['top', 'bottom', 'left', 'right']:
                     ax.spines[axis].set_linewidth(width)
                 
-        cb.ax.get_children()[7].set_linewidth(width) # cb.ax.get_children()[7] is colorbar spine
+        # cb.ax.get_children()[7].set_linewidth(width) # cb.ax.get_children()[7] is colorbar spine
         fig.tight_layout()
         plt.show()
         
@@ -210,6 +211,35 @@ class diagnostics(plotting):
         ys = 'log'
        
         self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+
+    def droplet_histogram(self, thresholds = []):
+
+        ## plot histogram of droplets over all events
+
+        epix_path = self.datadict['epix'].split('/')[0]
+        data2plot = self.h5[self.datadict['epix'].split('/')[0]]['var_droplet_sparse']['data'][:]
+
+        pt = '{} Droplet Histogram'.format(self.datadict['epix'].split('/')[0])
+        lt = 'Droplet Filters'
+        xl = self.datadict['epix'].split('/')[0]
+        ys = 'log'
+       
+        self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+
+    def detector_sum_ROI(self, ROI_1_limits = [], ROI_2_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle = 0):
+        roi_limits = {}
+        roi_limits['ROI_1'] = ROI_1_limits
+        roi_limits['ROI_2'] = ROI_2_limits
+
+        if setrois:
+            setattr(self, 'xes_roi_limits', roi_limits)
+
+        detector_group = self.datadict['epix'].split('/')[0]
+        data2plot = self.h5['Sums'][detector_group + '_calib'][:]
+
+        ptype = 'xes'
+        
+        self.roiview(data2plot, roi_limits, ptype, energy_dispersive_axis = energy_dispersive_axis)
         
     def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle=0):
         
@@ -223,7 +253,9 @@ class diagnostics(plotting):
             setattr(self, 'xes_roi_limits', roi_limits)
         
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
-        data2plot_rot = rotate(data2plot, angle, axes=[0,1])
+        if not angle == 0:
+            data2plot_rot = rotate(data2plot, angle, axes=[0,1])
+            data2plot = data2plot_rot 
         
         ptype = 'xes'
         
