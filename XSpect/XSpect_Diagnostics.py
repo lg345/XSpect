@@ -84,7 +84,7 @@ class plotting:
         
         if plt_type == 'xes':
             fig, ax = plt.subplots(ncols = 1, nrows = 2, figsize = (8,8))
-            p1 = ax[0].imshow(data, clim = cl)
+            p1 = ax[0].imshow(data, clim = cl, aspect = 'auto')
             ax[0].set_title('XES ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
                 if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
@@ -112,7 +112,7 @@ class plotting:
                         
         elif plt_type == 'xas':
             fig, ax = plt.subplots(ncols = 1, nrows = 1, figsize = (4,4))
-            p1 = ax.imshow(data, clim = cl)
+            p1 = ax.imshow(data, clim = cl, aspect = 'auto')
             ax.set_title('XAS ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
                 if thres[lim] and lim == 'horiz':
