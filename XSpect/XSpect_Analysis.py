@@ -466,7 +466,7 @@ class SpectroscopyAnalysis:
 
     def time_binning(self,run,bins,lxt_key='lxt_ttc',fast_delay_key='encoder',tt_correction_key='time_tool_correction'):
         """
-        Bins data in time based on specified bins.
+        Bins data in time based on specified bins. Units in picoseconds.
 
         Parameters
         ----------
@@ -481,15 +481,14 @@ class SpectroscopyAnalysis:
         tt_correction_key : str, optional
             The key for the time tool correction data (default is 'time_tool_correction').
         """
-        #print( str(getattr(run,fast_delay_key)))
-        #print( str(getattr(run,tt_correction_key)))
-        #print( str(getattr(run,fast_delay_key)+getattr(run,tt_correction_key)))
-        if lxt_key==None:
-            delays = np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
-        else:
-            delays = np.array(getattr(run,lxt_key)).flatten()*1.0e12 + np.array((getattr(run,fast_delay_key))).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
-        delays=np.array(getattr(run,fast_delay_key)).flatten()*1.0e12+np.array(getattr(run,tt_correction_key)).flatten()
-        #print(str(delays)) 
+        # Check magnitude of timing data by taking mean of absolute value of array and comparing to threshold.
+        a = np.nanmean(np.absolute(getattr(run, lxt_key)))
+        b = np.nanmean(np.absolute(getattr(run, fast_delay_key)))
+        c = np.nanmean(np.absolute(getattr(run, tt_correction_key)))
+        if not all(x > 0.001 for x in [a, b, c]):
+            run.update_status('------Timing data values are either very small or zero. Confirm the units and keys are correct-----\n-----Mean abs value of: lxt_key: %f, fast_delay: %f, tt_correction: %f -----' % (a, b, c))
+        # Generate delays, time_bins and binning
+        delays = np.array(getattr(run,lxt_key)).flatten() + np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
         run.delays=delays
         run.time_bins=bins
         run.timing_bin_indices=np.digitize(run.delays, bins)[:]
