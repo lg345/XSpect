@@ -756,7 +756,7 @@ class XESAnalysis(SpectroscopyAnalysis):
     def __init__(self,xes_line='kbeta'):
         self.xes_line=xes_line
         pass
-    def normalize_xes(self,run,detector_key,pixel_range=[300,550]):
+    def normalize_xes(self,run,detector_key,pixel_range=[0,-1]):
         """
         Normalize XES data by summing the signal over a specified pixel range.
 

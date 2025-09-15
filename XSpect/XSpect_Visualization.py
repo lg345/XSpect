@@ -92,6 +92,7 @@ class XESVisualization(SpectroscopyVisualization):
         analysis=XESAnalysis()
         analysis.normalize_xes(self,'summed_laser_on')
         analysis.normalize_xes(self,'summed_laser_off')
+
         if dark_cutoff != None :
             #self.summed_laser_off=self.summed_laser_off[:dark_cutoff]+self.summed_laser_on[:dark_cutoff]
             
@@ -100,10 +101,12 @@ class XESVisualization(SpectroscopyVisualization):
             self.summed_laser_off_normalized=np.nanmean((self.summed_laser_off_normalized[:dark_cutoff,:]+self.summed_laser_on_normalized[:dark_cutoff,:])/2,axis=0)
             #self.summed_laser_off_normalized=np.nanmean(self.summed_laser_off_normalized,axis=0)
             self.summed_laser_off_normalized=np.tile(self.summed_laser_off_normalized, (np.shape(self.summed_laser_on_normalized)[0], 1))
+
         xes_analysis.summed_laser_on_normalized=self.summed_laser_on_normalized
         xes_analysis.summed_laser_off_normalized=self.summed_laser_off_normalized
 
         if sub_mode == "avg_all_laser_off":
+            print("in sub mode")
             # Sum laser_on spectra along energy axis to get 1D array of normalization factors for each time bin
             norm_laser_on = np.nansum(self.summed_laser_on, axis = 1)
             # Normalize laser on. Need to transpose summed_laser_on to match dimension of 1D normalization array and then retranspose
@@ -209,7 +212,32 @@ class XESVisualization(SpectroscopyVisualization):
             raise ValueError("The peak for normalization is zero, normalization cannot be performed.")
         normalized_peak = y / y_peak
         setattr(self,'normalized_peak',normalized_peak)
-        
+
+    def laser_off_check(self, xes_analysis, key_laser_off, indices_to_plot=[0], x_lims=None):
+        laser_off = []
+        summed = []
+        for x in xes_analysis.analyzed_runs:
+            data = np.nansum(getattr(x, key_laser_off), axis = 0)
+            laser_off.append(data)
+            data = np.nansum(getattr(x,key_laser_off))
+            summed.append(data)
+        xes_analysis.all_runs_laser_off_normalized = np.divide(np.array(laser_off).T, np.array(summed)).T
+
+        plt.figure(figsize=(7,7))
+        plt.subplot(2, 1, 1)
+        for x in indices_to_plot:
+            plt.plot(laser_off[x]/summed[x], label = "Analyzed run increment " + str(x) + ": " + str(summed[x].round(1)))
+            plt.legend(fontsize=8)
+            plt.xlabel("Pixel")
+            plt.ylabel("Summed Intensity")
+            plt.xlim(x_lims)
+        plt.subplot(2, 1, 2)
+        plt.plot(np.arange(len(summed)), summed, color='tab:orange')
+        plt.scatter(np.arange(len(summed)), summed, s=20)
+        plt.xlabel("Shot_batch")
+        plt.ylabel("Total Laser Off Intensity")
+        plt.tight_layout()
+
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):
         self.vmin=-0.1
