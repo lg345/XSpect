@@ -119,7 +119,7 @@ class XESVisualization(SpectroscopyVisualization):
             laser_off_avg_all = norm_factor * laser_off_tiled
             # Assign laser_on and off to xes_analysis
             xes_analysis.summed_laser_on_normalized = on
-            xes_analysis.summed_all_laser_off_normalized = laser_off_avg_all
+            xes_analysis.summed_laser_off_normalized = laser_off_avg_all
 
 
     def combine_static_spectra(self,xes_analysis,xes_key):
@@ -134,37 +134,21 @@ class XESVisualization(SpectroscopyVisualization):
 
            
     def plot_2d_difference_spectrum(self,xes_analysis):
-        if not hasattr(xes_analysis, 'summed_all_laser_off_normalized'):
-            laser_on_spectrum=xes_analysis.summed_laser_on_normalized
-            laser_off_spectrum=xes_analysis.summed_laser_off_normalized
-            difference_spectrum=laser_on_spectrum-laser_off_spectrum
-            self.difference_spectrum=difference_spectrum
-            try:
-                energy=xes_analysis.analyzed_runs[0].kbeta_energy
-            except:
-                energy=np.linspace(0,np.shape(laser_on_spectrum),1)
-            #vmin, vmax = np.percentile(difference_spectrum, [0,99])
-            plt.figure(dpi=100)
-            plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,energy[0],energy[-1]])
-            plt.colorbar()
-            plt.xlabel('Time (ps)')
-            plt.ylabel('Energy (keV)')
-            setattr(xes_analysis,'difference_spectrum',difference_spectrum)
-        if hasattr(xes_analysis, 'summed_all_laser_off_normalized'):
-            laser_on_spectrum=xes_analysis.summed_laser_on_normalized
-            laser_off_spectrum=xes_analysis.summed_all_laser_off_normalized
-            difference_spectrum=laser_on_spectrum-laser_off_spectrum
-            self.difference_spectrum=difference_spectrum
-            try:
-                energy=xes_analysis.analyzed_runs[0].kbeta_energy
-            except:
-                energy=np.linspace(0,np.shape(laser_on_spectrum),1)
-            plt.figure(dpi=100)
-            plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,energy[0],energy[-1]])
-            plt.colorbar()
-            plt.xlabel('Time (ps)')
-            plt.ylabel('Energy (keV)')
-            setattr(xes_analysis,'difference_spectrum',difference_spectrum)
+        laser_on_spectrum=xes_analysis.summed_laser_on_normalized
+        laser_off_spectrum=xes_analysis.summed_laser_off_normalized
+        difference_spectrum=laser_on_spectrum-laser_off_spectrum
+        self.difference_spectrum=difference_spectrum
+        try:
+            energy=xes_analysis.analyzed_runs[0].kbeta_energy
+        except:
+            energy=np.linspace(0,np.shape(laser_on_spectrum),1)
+        #vmin, vmax = np.percentile(difference_spectrum, [0,99])
+        plt.figure(dpi=100)
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,energy[0],energy[-1]])
+        plt.colorbar()
+        plt.xlabel('Time (ps)')
+        plt.ylabel('Energy (keV)')
+        setattr(xes_analysis,'difference_spectrum',difference_spectrum)
 
     def normalize_spectrum(self, low, high,y=None):
         """
