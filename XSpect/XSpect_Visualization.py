@@ -222,6 +222,43 @@ class XESVisualization(SpectroscopyVisualization):
         plt.ylabel("Total Laser Off Intensity")
         plt.tight_layout()
 
+    def diff_slice(self, data, plot = 'Energy', indices = [], xlims = None, figure_size = (6,6)):
+        if plot == 'Energy':
+            plt.figure(figsize=figure_size)
+            for x in indices:
+                plt.plot(data.analyzed_runs[0].kbeta_energy, data.difference_spectrum[x,:], label = str(data.time_bins[x].round(2)) + ' ps')
+                plt.xlim(xlims)
+                plt.xlabel("Energy [keV]")
+                plt.ylabel("Difference")
+                plt.title('Runs: ' + str(data.runs), fontsize=10)
+                plt.legend()
+            plt.tight_layout()
+    
+        if plot == 'Time':
+            plt.figure(figsize=figure_size)
+            if type(indices) is list: 
+                if type(indices[0]) is int: 
+                    for x in indices:
+                        plt.plot(data.time_bins, data.difference_spectrum[:-1,x], label = str(data.analyzed_runs[0].kbeta_energy[x].round(2)) + ' eV')
+                        plt.xlim(xlims)
+                        plt.xlabel("Energy [keV]")
+                        plt.ylabel("Difference")
+                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.legend()
+                    plt.tight_layout()
+                elif type(indices[0]) is list:
+                    for x in indices:
+                        sum_data = np.nansum(data.difference_spectrum[:,x[0]:x[1]], axis = 1)
+                        sum_data = (1/np.trapz(sum_data)) * sum_data
+                        energy_range = str(data.analyzed_runs[0].kbeta_energy[x[0]].round(1)) + ' - ' + str(data.analyzed_runs[0].kbeta_energy[x[1]].round(2))
+                        plt.plot(data.time_bins, sum_data[:-1], label = energy_range + ' eV')
+                        plt.xlim(xlims)
+                        plt.xlabel("Energy [keV]")
+                        plt.ylabel("Difference")
+                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.legend()
+                    plt.tight_layout()
+
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):
         self.vmin=-0.1
