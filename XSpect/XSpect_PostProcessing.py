@@ -213,9 +213,9 @@ class post_analysis(analysis_functions):
         fig, ax = plt.subplots(ncols = 3, nrows = 1, figsize = figdim)
 
         offsetU = 0
-        offsetbaseU = np.max(np.abs(U[:,0:ncomp]))
+        offsetbaseU = np.max(np.abs(U[:,0:ncomp])) * 2.0
         offsetV = 0
-        offsetbaseV = np.max(np.abs(V[0:ncomp,:]))
+        offsetbaseV = np.max(np.abs(V[0:ncomp,:])) * 2.0
         offsetlistU = []
         offsetlistV = []
         SVDindex = []
