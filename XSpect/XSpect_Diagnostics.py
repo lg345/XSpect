@@ -83,7 +83,7 @@ class plotting:
         cl = (np.nanpercentile(data, 1), np.nanpercentile(data, 99))
         
         if plt_type == 'xes':
-            fig, ax = plt.subplots(ncols = 1, nrows = 2, figsize = (8,8))
+            fig, ax = plt.subplots(ncols = 1, nrows = 3, figsize = (8,8))
             p1 = ax[0].imshow(data, clim = cl, aspect = 'auto')
             ax[0].set_title('XES ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
@@ -91,12 +91,16 @@ class plotting:
                     if thres[lim]:
                         roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 1)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
+                        p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
                         for ii in range(len(thres[lim])):
                             ax[0].axhline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
                 else:
                     if thres[lim]:
                         roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 0)
+                        p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
                         for ii in range(len(thres[lim])):
                             ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
             ax[1].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
@@ -104,6 +108,11 @@ class plotting:
             ax[1].set_ylabel('Summed Intensity')
             ax[1].set_xlim([0, data.shape[0]])
             ax[1].legend()
+            ax[2].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
+            ax[2].set_xlabel('Pixel')
+            ax[2].set_ylabel('Summed Intensity')
+            ax[2].set_xlim(0,)
+            ax[2].legend()
             cb = fig.colorbar(p1, ax = ax[0])
             
             for plot in ax:
@@ -283,9 +292,11 @@ class diagnostics(plotting):
         
         if setrois:
             setattr(self, 'xes_roi_limits', roi_limits)
-        
+       
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
-        data2plot_rot = rotate(data2plot, angle, axes=[0,1])
+        if angle: 
+            print("Rotating image by %s degree(s)"%(angle))
+            data2plot = rotate(data2plot, angle, axes=[0,1])
         
         ptype = 'xes'
         
