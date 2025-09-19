@@ -19,6 +19,7 @@ from tqdm import tqdm
 import warnings
 import psutil
 from collections import defaultdict
+import pickle
 
 
 class BatchAnalysis:
@@ -278,10 +279,10 @@ class BatchAnalysis:
         if errors:
             self.update_status(f"Errors encountered: {len(errors)}")
 
-
-
-
-
+    def saveobject(self, filename):
+        filename =  str(filename) + '_' + datetime.now().strftime("%Y-%m-%d_%H%M%S") + '.pkl'
+        with open(filename, 'wb') as file:
+            pickle.dump(self, file, -1)
 
 def analyze_single_run(args):
     obj,experiment, run, shot_ranges, verbose = args
