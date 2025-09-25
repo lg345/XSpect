@@ -284,35 +284,52 @@ class BatchAnalysis:
         setattr(self, 'roi_list', roi_list)
 
         for roi in roi_list:
-            label1 = roi + '_xray_not_laser_reduced_time_binned'
-            xes = getattr(self.analyzed_runs[0], label1)
-            label2 = roi + '_simultaneous_laser_reduced_time_binned'
-            xes_laser = getattr(self.analyzed_runs[0], label2)
+            label_laser_off = roi + '_xray_not_laser_reduced_time_binned'
+            xes = getattr(self.analyzed_runs[0], label_laser_off)
+            label_laser_on = roi + '_simultaneous_laser_reduced_time_binned'
+            xes_laser = getattr(self.analyzed_runs[0], label_laser_on)
 
-            label3 = roi + '_xray_not_laser_reduced_std'
-            label4 = roi + '_simultaneous_laser_reduced_std'
+            label_laser_off_std = roi + '_xray_not_laser_reduced_std'
+            label_laser_on_std = roi + '_simultaneous_laser_reduced_std'
 
-            summed_laser_off = np.zeros_like(xes)
-            summed_laser_on = np.zeros_like(xes)
-            summed_laser_off_var = np.zeros_like(xes)
-            summed_laser_on_var = np.zeros_like(xes)
+            # summed_laser_off = np.zeros_like(xes)
+            # summed_laser_on = np.zeros_like(xes)
+            # summed_laser_off_var = np.zeros_like(xes)
+            # summed_laser_on_var = np.zeros_like(xes)
 
-            for run in self.analyzed_runs:
-                summed_laser_off += getattr(run, label1)
-                summed_laser_on += getattr(run, label2)
-                summed_laser_off_var += getattr(run, label3)**2
-                summed_laser_on_var += getattr(run, label4)**2
+            summed_laser_off_coll = np.empty(((len(self.analyzed_runs),) + xes.shape))
+            summed_laser_on_coll = np.empty(((len(self.analyzed_runs),) + xes.shape))
+            summed_laser_off_var = np.empty(((len(self.analyzed_runs),) + xes.shape))
+            summed_laser_on_var = np.empty(((len(self.analyzed_runs),) + xes.shape))
+            
+
+            for i, run in enumerate(self.analyzed_runs):
+                summed_laser_off_coll[i,:] = getattr(run, label_laser_off)
+                summed_laser_on_coll[i,:] = getattr(run, label_laser_on)
+                summed_laser_off_var[i,:] = getattr(run, label_laser_off_std)**2
+                summed_laser_on_var[i,:] = getattr(run, label_laser_on_std)**2
+                # summed_laser_off += getattr(run,label_laser_off)
+                # summed_laser_on += getattr(run, label_laser_on)
+                # summed_laser_off_var += getattr(run, label_laser_off_std)**2
+                # summed_laser_on_var += getattr(run, label_laser_on_std)**2
+
+            summed_laser_off = np.nansum(summed_laser_off_coll, axis = 0)
+            summed_laser_on = np.nansum(summed_laser_on_coll, axis = 0)
+            summed_laser_off_std = np.sqrt(np.nansum(summed_laser_off_var, axis = 0))
+            summed_laser_on_std = np.sqrt(np.nansum(summed_laser_on_var, axis = 0))
 
             setattr(self, roi + '_summed_laser_off', summed_laser_off)
             setattr(self, roi + '_summed_laser_on', summed_laser_on)
-            setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
-            setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
+            setattr(self, roi + '_summed_laser_off_std', summed_laser_off_std)
+            setattr(self, roi + '_summed_laser_on_std', summed_laser_on_std)
+            # setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
+            # setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
 
             analysis.normalize_xes(self, roi + '_summed_laser_off', pixel_range = [0,None])
             analysis.normalize_xes(self, roi + '_summed_laser_on', pixel_range = [0,None])
 
-            setattr(self, roi + '_summed_normalized_difference', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
-            setattr(self, roi + '_summed_normalized_difference_std', np.sqrt(getattr(self, roi + '_summed_laser_on_std')**2 + getattr(self, roi + '_summed_laser_off_std')**2))
+            setattr(self, roi + '_summed_difference_normalized', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
+            setattr(self, roi + '_summed_difference_normalized_std', np.sqrt(getattr(self, roi + '_summed_laser_on_normalized_std')**2 + getattr(self, roi + '_summed_laser_off_normalized_std')**2))
         self.update_status("Parallel analysis with shot ranges completed.")
 
         # End timing the parallel section
@@ -616,9 +633,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             analysis.separate_shots(f, roi, ['xray', 'laser'])
         
             label1 = roi + '_simultaneous_laser'
-            setattr(f, label1 + '_reduced', np.nansum(getattr(f, label1), axis = -1))
+            setattr(f, label1 + '_reduced', np.flip(np.nansum(getattr(f, label1), axis = -1), axis = 1))
             label2 = roi + '_xray_not_laser'
-            setattr(f, label2 + '_reduced', np.nansum(getattr(f, label2), axis = -1))
+            setattr(f, label2 + '_reduced', np.flip(np.nansum(getattr(f, label2), axis = -1), axis = 1))
         
             label3 = label1 + '_reduced'
             analysis.reduce_detector_temporal(f, label3, 'timing_bin_indices_simultaneous_laser', average = False)

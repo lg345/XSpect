@@ -208,6 +208,12 @@ class spectroscopy_run:
                 else:
                     data = fh[key][self.start_index:self.end_index, :, :]
 
+                print(data.shape)
+
+                if transpose:
+                    data = np.transpose(data, axes = (0, 2, 1))
+                    setattr(self, name, data)
+
                 # Apply one-dimensional ROIs if specified
                 if rois is not None:
                     if combine:
@@ -228,8 +234,8 @@ class spectroscopy_run:
 
                 setattr(self, name, data)
 
-                if transpose:
-                    setattr(self, name, np.transpose(data, axes=(1, 2)))
+                # if transpose:
+                #     setattr(self, name, np.transpose(data, axes=(1, 2)))
 
             except KeyError as e:
                 self.update_status(f'Key does not exist: {e.args[0]}')
@@ -423,7 +429,7 @@ class SpectroscopyAnalysis:
             setattr(run, detector_key, None)
             run.update_status(f"Purged key to save room: {detector_key}")
 
-    def droplet_reconstruction(self, run, detector_key, detector_friendly_name, rois=None, shot_range = [0, None]):
+    def droplet_reconstruction(self, run, detector_key, detector_friendly_name, rois=None, shot_range = [0, None], transpose = False):
         """
         Will reconstruct detector images per shot from droplet analysis if contained in detector key of hdf5 file.
         If ROIs are specified - will only reconstruct ROI images per shot.
@@ -441,9 +447,13 @@ class SpectroscopyAnalysis:
     
             indx_start = np.nansum(nDroplets_total[0:shot_range[0]])
             indx_end = np.nansum(nDroplets_total[0:shot_range[1]])
-    
-            cols = np.array(fh[detector_group]['var_droplet_sparse']['col'])[indx_start:indx_end]
-            rows = np.array(fh[detector_group]['var_droplet_sparse']['row'])[indx_start:indx_end]
+
+            if transpose:
+                cols = np.array(fh[detector_group]['var_droplet_sparse']['row'])[indx_start:indx_end]
+                rows = np.array(fh[detector_group]['var_droplet_sparse']['col'])[indx_start:indx_end]
+            else:
+                cols = np.array(fh[detector_group]['var_droplet_sparse']['col'])[indx_start:indx_end]
+                rows = np.array(fh[detector_group]['var_droplet_sparse']['row'])[indx_start:indx_end]
             data = np.array(fh[detector_group]['var_droplet_sparse']['data'])[indx_start:indx_end]
 
         except:
@@ -760,7 +770,7 @@ class SpectroscopyAnalysis:
             reduced_array = np.zeros((expected_length, detector.shape[1]))
         elif len(detector.shape) == 3:
             reduced_array = np.zeros((expected_length, detector.shape[1], detector.shape[2]))
-        reduced_std = reduced_array
+        reduced_std = np.zeros_like(reduced_array)
 
         counts = np.bincount(indices)
         if average:
@@ -770,7 +780,14 @@ class SpectroscopyAnalysis:
             np.add.at(reduced_array, indices, detector)
 
         for i in np.arange(expected_length):
-            reduced_std[i] = np.nansum(detector[indices == i][:], axis = 0)
+            # datpoints[i] = detector[indices == i][:]
+            # datmeans[i] = np.nanmean(detector[indices ==  i][:], axis = 0)\
+            # print(detector[indices == i][:].shape)
+            reduced_std[i] = np.nanstd(detector[indices == i][:], axis = 0)
+            # if counts[i] == 0:
+            #     print(i, run.time_bins[i])
+            # reduced_std[i] = np.nansum(detector[indices == i][:], axis = 0)
+            
         setattr(run, detector_key+'_time_binned', reduced_array)
         setattr(run, detector_key+'_bincount', counts)
         setattr(run, detector_key+'_std',reduced_std)
@@ -998,10 +1015,10 @@ class XESAnalysis(SpectroscopyAnalysis):
         xaxis = factor / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
 
         if name is not None:
-            setattr(run, name+'_energy', xaxis[::-1])
+            setattr(run, name+'_energy', xaxis)
         else:
             name = self.xes_line
-            setattr(run,name+'_energy',xaxis[::-1])
+            setattr(run,name+'_energy',xaxis)
         run.update_status('XES energy axis generated for %s'%(name))
 
     def reduce_det_scanvar(self, run, detector_key, scanvar_key, scanvar_bins_key):

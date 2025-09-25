@@ -69,20 +69,21 @@ class plotting:
             for lim in thres:
                 if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
                     if thres[lim]:
-                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 1)
+                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        ax[1].set_xlim([0, data.shape[1]])
                         for ii in range(len(thres[lim])):
                             ax[0].axhline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
                 else:
                     if thres[lim]:
                         roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        ax[1].set_xlim([0, data.shape[0]])
                         for ii in range(len(thres[lim])):
                             ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
             ax[1].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
             ax[1].set_xlabel('Pixel')
             ax[1].set_ylabel('Summed Intensity')
-            ax[1].set_xlim([0, data.shape[0]])
             ax[1].legend()
             cb = fig.colorbar(p1, ax = ax[0])
             
