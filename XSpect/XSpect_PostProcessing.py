@@ -207,15 +207,15 @@ class post_analysis(analysis_functions):
     def __init__(self):
         pass
 
-    def svdplot(self, xval, yval, data, ncomp):
+    def svdplot(self, xval, yval, data, ncomp, figdim=(8,4)):
         U, S, V = np.linalg.svd(data)
 
-        fig, ax = plt.subplots(ncols = 3, nrows = 1, figsize = (8,4))
+        fig, ax = plt.subplots(ncols = 3, nrows = 1, figsize = figdim)
 
         offsetU = 0
-        offsetbaseU = np.max(np.abs(U[:,0:ncomp]))
+        offsetbaseU = np.max(np.abs(U[:,0:ncomp])) * 2.0
         offsetV = 0
-        offsetbaseV = np.max(np.abs(V[0:ncomp,:]))
+        offsetbaseV = np.max(np.abs(V[0:ncomp,:])) * 2.0
         offsetlistU = []
         offsetlistV = []
         SVDindex = []

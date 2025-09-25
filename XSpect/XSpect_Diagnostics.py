@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import h5py
 from pathlib import Path
 from scipy.ndimage import rotate
+import inspect
 
 width = 1.5
 length = 5
@@ -20,8 +21,28 @@ plt.rcParams['ytick.right'] = True
 plt.rcParams['xtick.direction'] = 'in'
 plt.rcParams['ytick.direction'] = 'in'
 
-# from XSpect.XSpect_Analysis import *
-#import psana as ps
+class utils:
+    def __inti__(self):
+        pass
+
+    def object_inspector(data_object, verbose=False):
+        if verbose==True:
+            print("------ ATTRIBUTE LIST ------")
+            for x in dir(data_object):
+                print(x)
+            print("----- METHODS -----")
+            for method in inspect.getmembers(data_object, predicate=inspect.ismethod):
+                print(method)
+            print("----- ATTRIBUTES -----")
+            for key, value in vars(data_object).items():
+                print(key, ":", value)
+        if verbose==False:
+            print("----- METHODS -----")
+            for method in inspect.getmembers(data_object, predicate=inspect.ismethod):
+                print(method)
+            print("----- ATTRIBUTES -----")
+            for key, value in vars(data_object).items():
+                print(key, ":", value)
 
 class plotting:
     def __init__(self):
@@ -63,8 +84,8 @@ class plotting:
         cl = (np.nanpercentile(data, 1), np.nanpercentile(data, 99))
         
         if plt_type == 'xes':
-            fig, ax = plt.subplots(ncols = 1, nrows = 2, figsize = (8,8))
-            p1 = ax[0].imshow(data, clim = cl)
+            fig, ax = plt.subplots(ncols = 1, nrows = 3, figsize = (8,8))
+            p1 = ax[0].imshow(data, clim = cl, aspect = 'auto')
             ax[0].set_title('XES ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
                 if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
@@ -72,6 +93,9 @@ class plotting:
                         roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
                         ax[1].set_xlim([0, data.shape[1]])
+                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
+                        p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
+                        
                         for ii in range(len(thres[lim])):
                             ax[0].axhline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
                 else:
@@ -79,12 +103,20 @@ class plotting:
                         roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
                         ax[1].set_xlim([0, data.shape[0]])
+                        roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 0)
+                        p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
+
                         for ii in range(len(thres[lim])):
                             ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
             ax[1].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
             ax[1].set_xlabel('Pixel')
             ax[1].set_ylabel('Summed Intensity')
             ax[1].legend()
+            ax[2].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
+            ax[2].set_xlabel('Pixel')
+            ax[2].set_ylabel('Summed Intensity')
+            ax[2].set_xlim(0,)
+            ax[2].legend()
             cb = fig.colorbar(p1, ax = ax[0])
             
             for plot in ax:
@@ -93,7 +125,7 @@ class plotting:
                         
         elif plt_type == 'xas':
             fig, ax = plt.subplots(ncols = 1, nrows = 1, figsize = (4,4))
-            p1 = ax.imshow(data, clim = cl)
+            p1 = ax.imshow(data, clim = cl, aspect = 'auto')
             ax.set_title('XAS ROI', fontsize = 14, fontweight = 'bold')
             for lim in thres:
                 if thres[lim] and lim == 'horiz':
@@ -106,8 +138,7 @@ class plotting:
             
             for axis in ['top', 'bottom', 'left', 'right']:
                     ax.spines[axis].set_linewidth(width)
-                
-        # cb.ax.get_children()[7].set_linewidth(width) # cb.ax.get_children()[7] is colorbar spine
+
         fig.tight_layout()
         plt.show()
         
@@ -120,19 +151,39 @@ class diagnostics(plotting):
         self.exp = exp
         self.keys = keys
         self.friendly_names = friendly_names
-        
-        fpath = '/sdf/data/lcls/ds/{}/{}/hdf5/smalldata/'.format(self.exp[:3], self.exp)
-        f = fpath + '{}_Run{:04d}.h5'.format(self.exp, self.run)
-        self.h5 = h5py.File(f)
-        print('Run {} imported'.format(self.run))
-        
+        self.filepath = '/sdf/data/lcls/ds/{}/{}/hdf5/smalldata/'.format(self.exp[:3], self.exp) + '{}_Run{:04d}.h5'.format(self.exp, self.run)
+
         ## generate a dictionary for the supplied keys/friendly names
         
         self.datadict = {}
         for key, name in zip(keys, friendly_names):
             self.datadict[name] = key
+
+        ## read h5 file
+        self.h5 = h5py.File(self.filepath)
+        print('Run {} imported'.format(self.run))
         
-    def load_run_keys(self):
+        ## create list of all group/datasets keys
+
+        self.allgroupsdatasetskeys = []
+        def getnames(item):
+            self.allgroupsdatasetskeys.append(item)
+        self.h5.visit(getnames)
+    
+    def read_H5(self):
+
+        ## read h5 file
+        self.h5 = h5py.File(self.filepath)
+        print('Run {} imported'.format(self.run))
+        
+        ## create list of all group/datasets keys
+
+        self.allgroupsdatasetskeys = []
+        def getnames(item):
+            self.allgroupsdatasetskeys.append(item)
+        self.h5.visit(getnames)
+        
+    def load_run_keys(self, metadata = False):
         
         ## reads keys from h5 file and stores as arrays in self with the friendly key name
         
@@ -141,13 +192,34 @@ class diagnostics(plotting):
         except AttributeError:
             print('Error: must run importruns() function first')
             return
+        
+        if self.h5.__bool__() == False:
+            print("The h5 file has closed since initializing the diagnostic object. Attempting to read file.")
+            self.h5 = h5py.File(self.filepath)
+            print("h5 file open/closed bool state is: " + str(self.h5.__bool__()))
             
+        self.meta_data = []
+        meta_data_header = [["type", "shape", "memory size (GB)"], ["nan count", "max", "min", "mean"]]
+        self.meta_data.append({"header": meta_data_header})
         with self.h5 as fh:
             for key, name in zip(self.keys, self.friendly_names):
                 try:
                     setattr(self, name, fh[key][:])
+                    if metadata == True:
+                        print("meta data set to true, loading meta data")
+                        datatype = fh[key].dtype 
+                        shape = fh[key].shape
+                        sizeGB = fh[key].nbytes / 1e9
+                        nancnt = np.count_nonzero(np.isnan(fh[key]))
+                        max_value = np.max(np.nan_to_num(fh[key]))
+                        min_value = np.min(np.nan_to_num(fh[key]))
+                        mean_value = np.mean(np.nan_to_num(fh[key]))
+                        meta_data = [[datatype, shape, sizeGB], [nancnt, max_value, min_value, mean_value]]
+                        self.meta_data.append({key: meta_data})
                 except KeyError as e:
-                    print('Key does not exist: %s' % e)
+                    print('Key does not exist: %s' % e, '\n  ---> Please check self.alldatasetnames list for all dataset keys')
+        print("Finished loading keys, h5 file open/closed bool state is: " + str(self.h5.__bool__()))
+                
         
     def adu_histogram(self, nshots, thresholds, ROIopt = False, energy_dispersive_axis = 'vert'):
         
@@ -252,11 +324,11 @@ class diagnostics(plotting):
         
         if setrois:
             setattr(self, 'xes_roi_limits', roi_limits)
-        
+       
         data2plot = np.nansum(self.h5[self.datadict['epix']][0:nshots,:,:], axis = 0)
-        if not angle == 0:
-            data2plot_rot = rotate(data2plot, angle, axes=[0,1])
-            data2plot = data2plot_rot 
+        if angle: 
+            print("Rotating image by %s degree(s)"%(angle))
+            data2plot = rotate(data2plot, angle, axes=[0,1])
         
         ptype = 'xes'
         

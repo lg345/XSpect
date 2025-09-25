@@ -77,7 +77,7 @@ class XESVisualization(SpectroscopyVisualization):
         else:
             raise ValueError('There is no energy axis in this object')
     
-    def combine_spectra(self,xes_analysis,xes_key,xes_laser_key,dark_cutoff=None):
+    def combine_spectra(self,xes_analysis,xes_key,xes_laser_key,dark_cutoff=None, sub_mode=None):
         xes=getattr(xes_analysis.analyzed_runs[0],xes_key)
         xes_laser=getattr(xes_analysis.analyzed_runs[0],xes_laser_key)
         summed_laser_off=np.zeros_like(xes)
@@ -92,6 +92,7 @@ class XESVisualization(SpectroscopyVisualization):
         analysis=XESAnalysis()
         analysis.normalize_xes(self,'summed_laser_on')
         analysis.normalize_xes(self,'summed_laser_off')
+
         if dark_cutoff != None :
             #self.summed_laser_off=self.summed_laser_off[:dark_cutoff]+self.summed_laser_on[:dark_cutoff]
             
@@ -100,8 +101,26 @@ class XESVisualization(SpectroscopyVisualization):
             self.summed_laser_off_normalized = np.nanmean((self.summed_laser_off_normalized[:dark_cutoff,:]+self.summed_laser_on_normalized[:dark_cutoff,:])/2,axis=0)
             #self.summed_laser_off_normalized=np.nanmean(self.summed_laser_off_normalized,axis=0)
             self.summed_laser_off_normalized=np.tile(self.summed_laser_off_normalized, (np.shape(self.summed_laser_on_normalized)[0], 1))
+
         xes_analysis.summed_laser_on_normalized=self.summed_laser_on_normalized
         xes_analysis.summed_laser_off_normalized=self.summed_laser_off_normalized
+
+        if sub_mode == "avg_all_laser_off":
+            print("in sub mode")
+            # Sum laser_on spectra along energy axis to get 1D array of normalization factors for each time bin
+            norm_laser_on = np.nansum(self.summed_laser_on, axis = 1)
+            # Normalize laser on. Need to transpose summed_laser_on to match dimension of 1D normalization array and then retranspose
+            on = np.divide(self.summed_laser_on.T, norm_laser_on).T
+            # Combine laser off across all time bins and tile to make 2D array
+            laser_off_t_sum = np.nansum(self.summed_laser_off, axis = 0)
+            laser_off_tiled = np.tile(laser_off_t_sum, (self.summed_laser_off.shape[0],1))
+            # Normalize tiled laser off array
+            norm_factor = np.divide(np.nansum(on), np.nansum(laser_off_tiled))
+            laser_off_avg_all = norm_factor * laser_off_tiled
+            # Assign laser_on and off to xes_analysis
+            xes_analysis.summed_laser_on_normalized = on
+            xes_analysis.summed_laser_off_normalized = laser_off_avg_all
+
 
     def combine_static_spectra(self,xes_analysis,xes_key):
         xes=getattr(xes_analysis.analyzed_runs[0],xes_key)     
@@ -177,7 +196,69 @@ class XESVisualization(SpectroscopyVisualization):
             raise ValueError("The peak for normalization is zero, normalization cannot be performed.")
         normalized_peak = y / y_peak
         setattr(self,'normalized_peak',normalized_peak)
-        
+
+    def laser_off_check(self, xes_analysis, key_laser_off, indices_to_plot=[0], x_lims=None):
+        laser_off = []
+        summed = []
+        for x in xes_analysis.analyzed_runs:
+            data = np.nansum(getattr(x, key_laser_off), axis = 0)
+            laser_off.append(data)
+            data = np.nansum(getattr(x,key_laser_off))
+            summed.append(data)
+        xes_analysis.all_runs_laser_off_normalized = np.divide(np.array(laser_off).T, np.array(summed)).T
+
+        plt.figure(figsize=(7,7))
+        plt.subplot(2, 1, 1)
+        for x in indices_to_plot:
+            plt.plot(laser_off[x]/summed[x], label = "Analyzed run increment " + str(x) + ": " + str(summed[x].round(1)))
+            plt.legend(fontsize=8)
+            plt.xlabel("Pixel")
+            plt.ylabel("Summed Intensity")
+            plt.xlim(x_lims)
+        plt.subplot(2, 1, 2)
+        plt.plot(np.arange(len(summed)), summed, color='tab:orange')
+        plt.scatter(np.arange(len(summed)), summed, s=20)
+        plt.xlabel("Shot_batch")
+        plt.ylabel("Total Laser Off Intensity")
+        plt.tight_layout()
+
+    def diff_slice(self, data, plot = 'Energy', indices = [], xlims = None, figure_size = (6,6)):
+        if plot == 'Energy':
+            plt.figure(figsize=figure_size)
+            for x in indices:
+                plt.plot(data.analyzed_runs[0].kbeta_energy, data.difference_spectrum[x,:], label = str(data.time_bins[x].round(2)) + ' ps')
+                plt.xlim(xlims)
+                plt.xlabel("Energy [keV]")
+                plt.ylabel("Difference")
+                plt.title('Runs: ' + str(data.runs), fontsize=10)
+                plt.legend()
+            plt.tight_layout()
+    
+        if plot == 'Time':
+            plt.figure(figsize=figure_size)
+            if type(indices) is list: 
+                if type(indices[0]) is int: 
+                    for x in indices:
+                        plt.plot(data.time_bins, data.difference_spectrum[:-1,x], label = str(data.analyzed_runs[0].kbeta_energy[x].round(2)) + ' eV')
+                        plt.xlim(xlims)
+                        plt.xlabel("Energy [keV]")
+                        plt.ylabel("Difference")
+                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.legend()
+                    plt.tight_layout()
+                elif type(indices[0]) is list:
+                    for x in indices:
+                        sum_data = np.nansum(data.difference_spectrum[:,x[0]:x[1]], axis = 1)
+                        sum_data = (1/np.trapz(sum_data)) * sum_data
+                        energy_range = str(data.analyzed_runs[0].kbeta_energy[x[0]].round(1)) + ' - ' + str(data.analyzed_runs[0].kbeta_energy[x[1]].round(2))
+                        plt.plot(data.time_bins, sum_data[:-1], label = energy_range + ' eV')
+                        plt.xlim(xlims)
+                        plt.xlabel("Energy [keV]")
+                        plt.ylabel("Difference")
+                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.legend()
+                    plt.tight_layout()
+
 class XASVisualization(SpectroscopyVisualization):
     def __init__(self):
         self.vmin=-0.1

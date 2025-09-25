@@ -5,14 +5,14 @@
 Clone the repository:
 
    ```bash
-   git clone https://github.com/lg345/XSpecT.git
+   git clone https://github.com/lg345/XSpect.git
    ```
 
 Ensure that you have the necessary dependencies installed on your system. 
 
 ## Getting Started  
 
-Check out our [documentation](https://lg345.github.io/XSpecT/index.html) page for source code details and examples to get started. 
+Check out our [documentation](https://lg345.github.io/XSpect/) page for source code details and examples to get started. 
 
 ## License  
 Copyright 2025 XSpecT Team
