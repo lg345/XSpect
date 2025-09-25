@@ -70,7 +70,8 @@ class plotting:
         ax.set_title(plt_title, fontsize = 14, fontweight = 'bold')
         ax.set_xlabel(xlabel)
         ax.set_ylabel('Counts')
-        ax.legend(title = leg_title)
+        if thres.size > 0:
+            ax.legend(title = leg_title)
         ax.set_yscale(yscale)
         
         for axis in ['top', 'bottom', 'left', 'right']:
@@ -89,24 +90,27 @@ class plotting:
             for lim in thres:
                 if energy_dispersive_axis == 'horiz' or energy_dispersive_axis == 'horizontal':
                     if thres[lim]:
-                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 1)
+                        roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        ax[1].set_xlim([0, data.shape[1]])
                         roisum = np.nansum(data[thres[lim][0]:thres[lim][1],:], axis = 0)
                         p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
+                        
                         for ii in range(len(thres[lim])):
                             ax[0].axhline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
                 else:
                     if thres[lim]:
                         roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 1)
                         p2 = ax[1].plot(roisum, linewidth = 1.5, label = lim)
+                        ax[1].set_xlim([0, data.shape[0]])
                         roisum = np.nansum(data[:,thres[lim][0]:thres[lim][1]], axis = 0)
                         p3 = ax[2].plot(roisum, linewidth = 1.5, label = lim)
+
                         for ii in range(len(thres[lim])):
                             ax[0].axvline(thres[lim][ii], color = 'red', linewidth = 1.5, label = lim + ': {}'.format(thres[lim][ii]))
             ax[1].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
             ax[1].set_xlabel('Pixel')
             ax[1].set_ylabel('Summed Intensity')
-            ax[1].set_xlim([0, data.shape[0]])
             ax[1].legend()
             ax[2].set_title('ROI Projections', fontsize = 14, fontweight = 'bold')
             ax[2].set_xlabel('Pixel')
@@ -134,8 +138,7 @@ class plotting:
             
             for axis in ['top', 'bottom', 'left', 'right']:
                     ax.spines[axis].set_linewidth(width)
-                
-        #cb.ax.get_children()[7].set_linewidth(width) # cb.ax.get_children()[7] is colorbar spine ##JB this was returning an error
+
         fig.tight_layout()
         plt.show()
         
@@ -281,6 +284,35 @@ class diagnostics(plotting):
         ys = 'log'
        
         self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+
+    def droplet_histogram(self, thresholds = []):
+
+        ## plot histogram of droplets over all events
+
+        epix_path = self.datadict['epix'].split('/')[0]
+        data2plot = self.h5[self.datadict['epix'].split('/')[0]]['var_droplet_sparse']['data'][:]
+
+        pt = '{} Droplet Histogram'.format(self.datadict['epix'].split('/')[0])
+        lt = 'Droplet Filters'
+        xl = self.datadict['epix'].split('/')[0]
+        ys = 'log'
+       
+        self.hplot(data2plot, thresholds, pt, lt, xl, ys)
+
+    def detector_sum_ROI(self, ROI_1_limits = [], ROI_2_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle = 0):
+        roi_limits = {}
+        roi_limits['ROI_1'] = ROI_1_limits
+        roi_limits['ROI_2'] = ROI_2_limits
+
+        if setrois:
+            setattr(self, 'xes_roi_limits', roi_limits)
+
+        detector_group = self.datadict['epix'].split('/')[0]
+        data2plot = self.h5['Sums'][detector_group + '_calib'][:]
+
+        ptype = 'xes'
+        
+        self.roiview(data2plot, roi_limits, ptype, energy_dispersive_axis = energy_dispersive_axis)
         
     def xes_ROI(self, nshots, kb_limits = [], ka_limits = [], setrois = False, energy_dispersive_axis = 'vert', angle=0):
         
