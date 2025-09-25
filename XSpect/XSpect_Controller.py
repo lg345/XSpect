@@ -623,7 +623,20 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             if not self.use_droplets:
                 analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
             analysis.patch_pixels(f,roi,axis=1)
-            if self.angle != 0:
+            
+            if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
+                if self.angle[ii] !=0:
+                    start = time.time()
+                    setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
+                    end = time.time()
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+            elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
+                f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+            elif self.angle != 0 and not isinstance(self.angle, list):
                 start = time.time()
                 setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
                 end = time.time()
