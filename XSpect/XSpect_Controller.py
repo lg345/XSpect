@@ -34,10 +34,9 @@ class BatchAnalysis:
         self.run_shots = {}
         self.run_shot_ranges = {}
         self.analyzed_runs = []
-        
+
         self.use_droplets = False
         self.xes_line='kbeta'
-        self.pixels_to_patch=[351,352,529,530,531]
         self.crystal_detector_distance=50.6
         self.crystal_d_space=0.895
         self.crystal_radius=250
@@ -492,8 +491,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
         if self.transpose:
             f.epix=np.transpose(f.epix)
-        analysis.pixels_to_patch=self.pixels_to_patch     
-        analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch     
+            analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
         if self.angle!=0:
             #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
             f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
@@ -553,8 +553,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             if self.transpose:
                 setattr(f, key, np.transpose(getattr(f, key)))
     
-            analysis.pixels_to_patch = self.pixels_to_patch
-            analysis.patch_pixels(f, key, axis=0, mode=self.patch_mode)
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.pixels_to_patch = self.pixels_to_patch
+                analysis.patch_pixels(f, key, axis=0, mode=self.patch_mode)
     
             if self.angle != 0:
                 setattr(f, key, rotate(getattr(f, key), angle=self.angle, axes=[0, 1]))
@@ -582,7 +583,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
 
-        analysis.pixels_to_patch=self.pixels_to_patch
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
 
         analysis.time_binning(f, self.time_bins)
         self.keys_to_save.extend(['time_bins'])
@@ -623,7 +625,9 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         for ii, roi in enumerate(self.roi_list):
             if not self.use_droplets:
                 analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
-            analysis.patch_pixels(f,roi,axis=1)
+
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.patch_pixels(f,roi,axis=1)
             
             if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
                 if self.angle[ii] !=0:
@@ -754,7 +758,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.get_run_shot_properties()
 
         analysis=XESAnalysis()
-        analysis.pixels_to_patch=self.pixels_to_patch
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         f.epix=np.nansum(np.nansum(f.epix,axis=1),axis=1)
         for fil in self.filters:
