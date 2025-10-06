@@ -139,7 +139,7 @@ class BatchAnalysis:
         self.update_status("Primary analysis loop completed.")
 
         for roi in self.roi_list:
-            print(roi)
+            #print(roi)
             label1 = roi + '_xray_not_laser_reduced_time_binned'
             xes = getattr(self.analyzed_runs[0], label1)
             label2 = roi + '_simultaneous_laser_reduced_time_binned'
@@ -662,42 +662,44 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
 
             pixels = getattr(f, label3 + '_time_binned').shape[1]
 
-            if isinstance(self.crystal_dict, dict) and self.crystal_dict != {}:
-                vH = vonHamos()
-                crystal = self.crystal_dict['crystal']
-                h = self.crystal_dict['h']
-                k = self.crystal_dict['k']
-                l = self.crystal_dict['l']
-                d_space = vH.dspacing(crystal, h, k, l)
-                
-                radius = self.crystal_dict['radius']
-                detector_distance = self.crystal_dict['detector_distance']
-            elif isinstance(self.crystal_dict, list) and self.crystal_dict != []:
-                vH = vonHamos()
-                if len(self.crystal_dict) == len(self.roi_list):
-                    crystal = self.crystal_dict[ii]['crystal']
-                    h = self.crystal_dict[ii]['h']
-                    k = self.crystal_dict[ii]['k']
-                    l = self.crystal_dict[ii]['l']
+            if hasattr(self, 'crystal_dict'):
+                if isinstance(self.crystal_dict, dict) and self.crystal_dict != {}:
+                    vH = vonHamos()
+                    crystal = self.crystal_dict['crystal']
+                    h = self.crystal_dict['h']
+                    k = self.crystal_dict['k']
+                    l = self.crystal_dict['l']
                     d_space = vH.dspacing(crystal, h, k, l)
                     
-                    radius = self.crystal_dict[ii]['radius']
-                    detector_distance = self.crystal_dict[ii]['detector_distance']
+                    radius = self.crystal_dict['radius']
+                    detector_distance = self.crystal_dict['detector_distance']
+                elif isinstance(self.crystal_dict, list) and self.crystal_dict != []:
+                    vH = vonHamos()
+                    if len(self.crystal_dict) == len(self.roi_list):
+                        crystal = self.crystal_dict[ii]['crystal']
+                        h = self.crystal_dict[ii]['h']
+                        k = self.crystal_dict[ii]['k']
+                        l = self.crystal_dict[ii]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[ii]['radius']
+                        detector_distance = self.crystal_dict[ii]['detector_distance']
+                    else:
+                        crystal = self.crystal_dict[0]['crystal']
+                        h = self.crystal_dict[0]['h']
+                        k = self.crystal_dict[0]['k']
+                        l = self.crystal_dict[0]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[0]['radius']
+                        detector_distance = self.crystal_dict[0]['detector_distance']
                 else:
-                    crystal = self.crystal_dict[0]['crystal']
-                    h = self.crystal_dict[0]['h']
-                    k = self.crystal_dict[0]['k']
-                    l = self.crystal_dict[0]['l']
-                    d_space = vH.dspacing(crystal, h, k, l)
+                    d_space = self.crystal_d_space
+                    radius = self.crystal_radius
+                    detector_distance = self.crystal_detector_distance
                     
-                    radius = self.crystal_dict[0]['radius']
-                    detector_distance = self.crystal_dict[0]['detector_distance']
-            else:
-                d_space = self.crystal_d_space
-                radius = self.crystal_radius
-                detector_distance = self.crystal_detector_distance
-                
-            analysis.make_energy_axis(f, pixels, A=detector_distance, R=radius, d=d_space, name = roi)
+                analysis.make_energy_axis(f, pixels, A=detector_distance, R=radius, d=d_space, name = roi)
+
             self.keys_to_save.extend([roi + '_energy'])
             
 

@@ -208,7 +208,7 @@ class spectroscopy_run:
                 else:
                     data = fh[key][self.start_index:self.end_index, :, :]
 
-                print(data.shape)
+                #print(data.shape)
 
                 if transpose:
                     data = np.transpose(data, axes = (0, 2, 1))

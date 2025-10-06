@@ -222,16 +222,26 @@ class XESVisualization(SpectroscopyVisualization):
         plt.ylabel("Total Laser Off Intensity")
         plt.tight_layout()
 
-    def diff_slice(self, data, plot = 'Energy', indices = [], xlims = None, figure_size = (6,6)):
+    def diff_slice(self, data, plot = 'Energy', indices = [], xlims = None, figure_size = (6,8)):
+
         if plot == 'Energy':
             plt.figure(figsize=figure_size)
+            plt.subplot(3, 1, (1,2))
             for x in indices:
                 plt.plot(data.analyzed_runs[0].kbeta_energy, data.difference_spectrum[x,:], label = str(data.time_bins[x].round(2)) + ' ps')
                 plt.xlim(xlims)
                 plt.xlabel("Energy [keV]")
                 plt.ylabel("Difference")
                 plt.title('Runs: ' + str(data.runs), fontsize=10)
-                plt.legend()
+                plt.minorticks_on()
+                plt.legend(fontsize = 10)
+            plt.subplot(3, 1, 3)
+            plt.plot(data.analyzed_runs[0].kbeta_energy, data.summed_laser_off_normalized[0], color = 'k', label = "Laser off")
+            plt.xlim(xlims)
+            plt.minorticks_on()
+            plt.xlabel("Energy [keV]")
+            plt.ylabel("Intensity")
+            plt.legend(fontsize = 10)
             plt.tight_layout()
     
         if plot == 'Time':
@@ -243,6 +253,7 @@ class XESVisualization(SpectroscopyVisualization):
                         plt.xlim(xlims)
                         plt.xlabel("Energy [keV]")
                         plt.ylabel("Difference")
+                        plt.minorticks_on() 
                         plt.title('Runs: ' + str(data.runs), fontsize=10)
                         plt.legend()
                     plt.tight_layout()
@@ -255,6 +266,7 @@ class XESVisualization(SpectroscopyVisualization):
                         plt.xlim(xlims)
                         plt.xlabel("Energy [keV]")
                         plt.ylabel("Difference")
+                        plt.minorticks_on()
                         plt.title('Runs: ' + str(data.runs), fontsize=10)
                         plt.legend()
                     plt.tight_layout()
