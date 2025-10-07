@@ -277,7 +277,47 @@ class BatchAnalysis:
         self.analyzed_runs = analyzed_runs
         analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
         self.analyzed_runs = analyzed_runs
+
+        self.update_status("Parallel analysis with shot ranges completed.")
+
+        # End timing the parallel section
+        parallel_end_time = time.time()
+
+        # End timing the overall process
+        end_time = time.time()
+
+        # Calculate I/O statistics
+        io_after = psutil.disk_io_counters()
+        read_bytes = io_after.read_bytes - io_before.read_bytes
+        write_bytes = io_after.write_bytes - io_before.write_bytes
+
+        mem_after = psutil.virtual_memory().used
+        memory_used = mem_after - mem_before
+
+        # Calculate useful statistics
+        total_time = end_time - start_time
+        parallel_time = parallel_end_time - start_time
+        time_per_run = parallel_time / total_runs if total_runs > 0 else 0
+        time_per_core = parallel_time / cores if cores > 0 else 0
+        runs_per_core = total_runs / cores if cores > 0 else 0
+
+        # Update status with statistics
+        self.update_status(f"Parallel analysis completed.")
+        self.update_status(f"Total time: {total_time:.2f} seconds.")
+        self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
+        self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
+        self.update_status(f"Time per core (on average): {time_per_core:.2f} seconds.")
+        self.update_status(f"Batches per core (on average): {runs_per_core:.2f}.")
+        self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
+        self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
+        self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
+
+        if errors:
+            self.update_status(f"Errors encountered during parallel processing: {len(errors)}")
         
+
+        self.update_status(f"Combining analyzed_runs.")
+
         roi_list = []
         for i in range(len(self.rois)):
             roi_list.append('epix_ROI_%i' % (i+1))
@@ -330,42 +370,8 @@ class BatchAnalysis:
 
             setattr(self, roi + '_summed_difference_normalized', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
             setattr(self, roi + '_summed_difference_normalized_std', np.sqrt(getattr(self, roi + '_summed_laser_on_normalized_std')**2 + getattr(self, roi + '_summed_laser_off_normalized_std')**2))
-        self.update_status("Parallel analysis with shot ranges completed.")
 
-        # End timing the parallel section
-        parallel_end_time = time.time()
-
-        # End timing the overall process
-        end_time = time.time()
-
-        # Calculate I/O statistics
-        io_after = psutil.disk_io_counters()
-        read_bytes = io_after.read_bytes - io_before.read_bytes
-        write_bytes = io_after.write_bytes - io_before.write_bytes
-
-        mem_after = psutil.virtual_memory().used
-        memory_used = mem_after - mem_before
-
-        # Calculate useful statistics
-        total_time = end_time - start_time
-        parallel_time = parallel_end_time - start_time
-        time_per_run = parallel_time / total_runs if total_runs > 0 else 0
-        time_per_core = parallel_time / cores if cores > 0 else 0
-        runs_per_core = total_runs / cores if cores > 0 else 0
-
-        # Update status with statistics
-        self.update_status(f"Parallel analysis completed.")
-        self.update_status(f"Total time: {total_time:.2f} seconds.")
-        self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
-        self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
-        self.update_status(f"Time per core (on average): {time_per_core:.2f} seconds.")
-        self.update_status(f"Batches per core (on average): {runs_per_core:.2f}.")
-        self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
-        self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
-        self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
-
-        if errors:
-            self.update_status(f"Errors encountered: {len(errors)}")
+        self.update_status(f"Analysis Completed!")
 
     def saveobject(self, filename):
         filename =  str(filename) + '_' + datetime.now().strftime("%Y-%m-%d_%H%M%S") + '.pkl'
