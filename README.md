@@ -12,7 +12,7 @@ Ensure that you have the necessary dependencies installed on your system.
 
 ## Getting Started  
 
-Check out our [documentation](https://lg345.github.io/XSpect) page for source code details and examples to get started. 
+Check out our [documentation](https://lg345.github.io/XSpect/index.html) page for source code details and examples to get started. 
 
 ## License  
 Copyright 2025 XSpecT Team
