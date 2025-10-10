@@ -1,3 +1,4 @@
 # ignore jupyter temp files
 .ipynb_checkpoints/
 Controller_Plans.ipynb
+XSpect_XES_examples.ipynb
