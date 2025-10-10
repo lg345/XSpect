@@ -12,6 +12,7 @@ import sys
 import argparse
 from datetime import datetime
 import tempfile
+
 class experiment:
     def __init__(self, lcls_run, hutch, experiment_id):
         """
@@ -19,12 +20,16 @@ class experiment:
 
         Parameters
         ----------
+	
         lcls_run : str
             LCLS run identifier. The LCLS run not the scan/run. Example: 21
+
         hutch : str
             Hutch name. Example: xcs
+
         experiment_id : str
             Experiment identifier. Example: xcsl1004021
+
         """
         self.lcls_run = lcls_run
         self.hutch = hutch
@@ -37,13 +42,16 @@ class experiment:
 
         Returns
         -------
+
         str
             The directory of the experiment.
 
         Raises
         ------
+
         Exception
             If the directory cannot be found.
+
         """
         experiment_directories = [
         '/sdf/data/lcls/ds/%s/%s/hdf5/smalldata',
@@ -79,18 +87,24 @@ class spectroscopy_run:
 
         Parameters
         ----------
+
         spec_experiment : spectroscopy_experiment
             The parent spectroscopy experiment.
+
         run : int
             The run number.
+
         verbose : bool, optional
             Flag for verbose output used for printing all of the status updates. 
             These statuses are also available in the object itself. Defaults to False.
+
         end_index : int, optional
             Index to stop processing data. Defaults to -1.
+
         start_index : int, optional
             Index to start processing data. Defaults to 0.
             These indices are used for batch analysis. 
+
         """
         self.spec_experiment=spec_experiment
         self.run_number=run
@@ -114,10 +128,13 @@ class spectroscopy_run:
         """
         Updates the status log for the run and appends it to the objects status/datetime attibutes.
         If verbose then it prints it.
+
         Parameters
         ----------
+
         update : str
             The status update message.
+
         """
         self.status.append(update)
         self.status_datetime.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
@@ -157,10 +174,13 @@ class spectroscopy_run:
 
         Parameters
         ----------
+
         keys : list
             List of keys to load from the hdf5 file
+
         friendly_names : list
             Corresponding list of friendly names for the keys. Some keys are special to the subsequent analyis e.g. epix and ipm. 
+
         """
         start=time.time()
         with h5py.File(self.run_file, 'r') as fh:
@@ -185,17 +205,23 @@ class spectroscopy_run:
 
         Parameters
         ----------
+
         keys : list
             List of keys to load.
+
         friendly_names : list
             Corresponding list of friendly names for the keys.
+
         transpose : bool, optional
             Flag to transpose the loaded data. Defaults to False.
+
         rois : list of lists, optional
             List of ROIs (regions of interest) as pixel ranges along one dimension (default is None).
             Each ROI should be in the form [start_col, end_col].
+
         combine : bool, optional
             Whether to combine ROIs into a single mask. Defaults to True.
+
         """
         start = time.time()
         fh = h5py.File(self.run_file, 'r')
@@ -258,13 +284,17 @@ class spectroscopy_run:
 
         Parameters
         ----------
+
         key : str
             The key to sum the scattering data from.
+
         low : int
             Low index for summing
+
         high: int 
             high index for summing
             These indices should be chosen over the water ring or some scattering of interest.
+
         """
         with h5py.File(self.run_file, 'r') as fh:
             setattr(self, 'scattering', np.nansum(np.nansum(fh[key][:,:,low:high],axis=1),axis=1))
@@ -283,8 +313,10 @@ class spectroscopy_run:
 
         Parameters
         ----------
+
         keys_to_keep : list
             List of keys to retain.
+
         """
                 
         keys_to_keep = set(keys_to_keep)  # Remove duplicates by converting to a set
@@ -304,10 +336,13 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         key : str
             The key for which unique values are to be binned.
+
         """
         vals = getattr(run,key)
         bins = np.unique(vals)
@@ -327,18 +362,23 @@ class SpectroscopyAnalysis:
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         """
         Filters shots based on a given threshold.
+        For example, if we filter: xray,ipm,1E4 then X-ray shots will be filtered out if the ipm is below 1E4.
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         shot_mask_key : str
             The key corresponding to the shot mask. An example being [xray,simultaneous,laser] for all x-ray shots
+
         filter_key : str, optional
             The key corresponding to the filter data (default is 'ipm'). 
+
         threshold : float, optional
             The threshold value for filtering (default is 1.0E4).
-        So if we filter: xray,ipm,1E4 then X-ray shots will be filtered out if the ipm is below 1E4.
+
         """
         shot_mask=getattr(run,shot_mask_key)
         count_before=np.sum(shot_mask)
@@ -363,12 +403,16 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         shot_mask_key : str
             The key corresponding to the shot mask.
+
         filter_key : str, optional
             The key corresponding to the filter data (default is 'ipm').
+
         """
         shot_mask=getattr(run,shot_mask_key)
         count_before=np.sum(shot_mask)
@@ -387,17 +431,22 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector : str
             The key corresponding to the detector data.
+
         adu_threshold : float or list of float, optional
             The ADU threshold for filtering. Can be a single value or a range (default is 3.0).
-        
+
         Returns
         -------
+
         np.ndarray
             The filtered detector data.
+
         """
         detector_images=getattr(run,detector)
         if isinstance(adu_threshold,list):
@@ -420,10 +469,13 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         keys : list of str
             The list of keys to purge.
+
         """
         for detector_key in keys:
             setattr(run, detector_key, None)
@@ -581,20 +633,28 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         shot_range : list, optional
             The range of shots to consider (default is [0, None]).
+
         rois : list of lists, optional
             The list of ROIs (regions of interest) as pixel ranges (default is [[0, None]]).
+
         reduction_function : function, optional
             The function to apply for reduction (default is np.sum).
+
         purge : bool, optional
             Whether to purge the original detector data after reduction (default is True).
+
         combine : bool, optional
             Whether to combine ROIs (default is True).
+
         """
         detector = getattr(run, detector_key)
         if combine:
@@ -634,16 +694,22 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         bins : array-like
             The bins to use for time binning.
+
         lxt_key : str, optional
             The key for the laser time delay data (default is 'lxt_ttc').
+
         fast_delay_key : str, optional
             The key for the fast delay data (default is 'encoder').
+
         tt_correction_key : str, optional
             The key for the time tool correction data (default is 'time_tool_correction').
+
         """
 
         # Check magnitude of timing data by taking mean of absolute value of array and comparing to threshold.
@@ -700,12 +766,16 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         filter_keys : list of str
             The list of filter keys to combine.
+
         """
         detector = getattr(run, detector_key)
         
@@ -729,12 +799,16 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         filter_keys : list of str
             The list of filter keys to separate.
+
         """
         detector = getattr(run, detector_key)
         if isinstance(filter_keys, list):
@@ -753,14 +827,19 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         timing_bin_key_indices : str
             The key corresponding to the timing bin indices.
+
         average : bool, optional
             Whether to average the data within each bin (default is False).
+
         """
         detector = getattr(run, detector_key)
         indices = getattr(run, timing_bin_key_indices)
@@ -799,20 +878,28 @@ class SpectroscopyAnalysis:
 
         Parameters
         ----------
+
         run : spectroscopy_run
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         mode : str, optional
             The mode of patching ('average', 'polynomial', or 'interpolate').
+
         patch_range : int, optional
             The range around the pixel to use for patching (default is 4).
+
         deg : int, optional
             The degree of the polynomial for polynomial patching (default is 1).
+
         poly_range : int, optional
             The range of pixels to use for polynomial or interpolation patching (default is 6).
+
         axis : int, optional
             The axis along which to apply the patching (default is 1).
+
         """
         for pixel in self.pixels_to_patch:
             self.patch_pixel(run,detector_key,pixel,mode,patch_range,deg,poly_range,axis=axis)
@@ -822,24 +909,34 @@ class SpectroscopyAnalysis:
         """
         EPIX detector pixel patching.
         TODO: extend to patch regions instead of per pixel.
+
         Parameters
         ----------
+
         data : array_like
             Array of shots
+
         pixel : integer
             Pixel point to be patched
+	    
         mode : string
             Determines which mode to use for patching the pixel. Averaging works well.
+
         patch_range : integer
             Pixels away from the pixel to be patched to be used for patching. Needed if multiple pixels in a row are an issue.
+	    
         deg : integer
             Degree of polynomial if polynomial patching is used.
+
         poly_range : integer
             Number of pixels to include in the polynomial or interpolation fitting
+
         Returns
         -------
+
         float
             The original data with the new patch values.
+
         """
         data = getattr(run, detector_key)
 
@@ -974,12 +1071,16 @@ class XESAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         pixel_range : list of int, optional
             The pixel range to sum over for normalization (default is [300, 550]).
+
         """
         detector = getattr(run, detector_key)
    
@@ -998,12 +1099,16 @@ class XESAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         A : float
             The detector to vH distance (mm) and can roughly float. This will affect the spectral offset.
+
         R : float
             The vH crystal radii (mm) and should not float. This will affect the spectral stretch.
+
         pixel_array : array-like
             Array of pixels to determine the energy of.
+
         d : float
             Crystal d-spacing. To calculate, visit: spectra.tools/bin/controller.pl?body=Bragg_Angle_Calculator
 
@@ -1031,19 +1136,25 @@ class XESAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data within the run object.
+
         scanvar_key : str
             The key corresponding to the scan variable indices.
+
         scanvar_bins_key : str
             The key corresponding to the scan variable bins.
 
         Returns
         -------
+
         None
             The reduced data is stored in the `run` object with the key formatted as `{detector_key}_scanvar_reduced`.
+
         """
     
         detector = getattr(run, detector_key)
@@ -1075,10 +1186,13 @@ class XASAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         threshold : int, optional
             The minimum number of shots required to keep a CCM value (default is 120).
+
         """
         
         ccm_bins=getattr(run,'ccm_bins',elist_center)
@@ -1093,10 +1207,13 @@ class XASAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         energies : array-like
             Array of energy values to be used for creating CCM bins.
+
         """
         elist=energies
 #         addon = (elist[-1] - elist[-2])/2 # add on energy 
@@ -1153,14 +1270,19 @@ class XASAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         ccm_bin_key_indices : str
             The key corresponding to the CCM bin indices.
+
         average : bool, optional
             Whether to average the reduced data (default is False).
+
         not_ccm : bool, optional
             Whether to indicate that CCM is not being used (default is False).
 
@@ -1183,14 +1305,19 @@ class XASAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         detector_key : str
             The key corresponding to the detector data.
+
         timing_bin_key_indices : str
             The key corresponding to the timing bin indices.
+
         average : bool, optional
             Whether to average the reduced data (default is False).
+
         """
         detector = getattr(run, detector_key)
         time_bins=run.time_bins
@@ -1207,12 +1334,16 @@ class XASAnalysis(SpectroscopyAnalysis):
 
         Parameters
         ----------
+
         run : object
             The spectroscopy run instance.
+
         ccm_bins_key : str
             The key corresponding to the CCM bins.
+
         ccm_key : str, optional
             The key corresponding to the CCM data (default is 'ccm').
+
         """
         ccm=getattr(run,ccm_key)
         bins=getattr(run,ccm_bins_key)
