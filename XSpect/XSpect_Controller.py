@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit, minimize
-import multiprocessing
+from multiprocessing import Pool, TimeoutError
 import os
 from functools import partial
 import time
@@ -229,13 +229,14 @@ class BatchAnalysis:
 
 
 
-    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
+    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None, tasktimeout=30):
         analysis = XESAnalysis()
         self.update_status("Starting parallel analysis with shot ranges.")
         self.parse_run_shots(experiment, verbose)
         self.break_into_shot_ranges(increment)
 
-        analyzed_runs = []
+        #analyzed_runs = []
+        self.analyzed_runs = []
         total_runs = len(self.run_shot_ranges)
 
         # Start timing the overall process
@@ -247,38 +248,42 @@ class BatchAnalysis:
 
         errors = []
         total_tasks = 0
+        
+        self.update_status(f"Starting multiprocessing with Pool using {cores} cores.")
 
         with Pool(processes=cores) as pool, tqdm(total=total_runs, desc="Processing", unit="Shot_Batch") as pbar:
             run_shot_ranges = self.run_shot_ranges
-
-            def callback(result):
-                nonlocal pbar
-                if isinstance(result, dict) and "error" in result:
-                    self.update_status(f"Error in processing run {result['run']}: {result['error']}")
-                    errors.append(result['error'])
-                else:
-                    analyzed_runs.append(result)
-                pbar.update(1)
-
-            def error_callback(e):
-                self.update_status(f"Parallel processing error: {str(e)}")
-                errors.append(str(e))
-
+            results = []
+        
+            # Submit all tasks to the pool
             for run_shot in run_shot_ranges:
                 run, shot_ranges = run_shot
-                pool.apply_async(self.primary_analysis_range, 
-                                 (experiment, run, shot_ranges, verbose, method), 
-                                 callback=callback, 
-                                 error_callback=error_callback)
-
+                result = pool.apply_async(self.primary_analysis_range, (experiment, run, shot_ranges, verbose, method))
+                results.append((run, shot_ranges, result))  # Store the run and result as tuple
+        
+            # Use loop to independently monitor tasks status
+            # Include error handling for tasks that time out
+            for run, shot_ranges, result in results:
+                try:
+                    output = result.get(timeout=tasktimeout)  # Limit each task to tasktimeout in seconds. Default is 30.
+                    # Process any errors as needed
+                    if isinstance(output, dict) and 'error' in output:
+                        self.update_status(f"Error in processing run {run} and shots {shot_ranges}: {output['error']}")
+                        errors.append(output['error'])
+                    else:
+                        self.analyzed_runs.append(output)
+                    pbar.update(1)
+                except TimeoutError:
+                    self.update_status(f"Task for run {run} shot_ranges {shot_ranges} timed out")
+                    errors.append(f"Timeout for run {run}")
+        
             pool.close()
             pool.join()
 
-        self.analyzed_runs = analyzed_runs
-        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
-        self.analyzed_runs = analyzed_runs
-
         self.update_status("Parallel analysis with shot ranges completed.")
+
+        self.update_status("Sorting analyzed_runs.")
+        self.analyzed_runs = [analyzed_run for analyzed_run in sorted(self.analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
 
         # End timing the parallel section
         parallel_end_time = time.time()
@@ -302,7 +307,7 @@ class BatchAnalysis:
         runs_per_core = total_runs / cores if cores > 0 else 0
 
         # Update status with statistics
-        self.update_status(f"Parallel analysis completed.")
+        self.update_status(f"---Parallel Analysis Stats---.")
         self.update_status(f"Total time: {total_time:.2f} seconds.")
         self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
         self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
@@ -316,7 +321,7 @@ class BatchAnalysis:
             self.update_status(f"Errors encountered during parallel processing: {len(errors)}")
         
 
-        self.update_status(f"Combining analyzed_runs.")
+        self.update_status(f"Combining analyzed_runs for each ROI.")
 
         roi_list = []
         for i in range(len(self.rois)):

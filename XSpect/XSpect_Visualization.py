@@ -222,24 +222,29 @@ class XESVisualization(SpectroscopyVisualization):
         plt.ylabel("Total Laser Off Intensity")
         plt.tight_layout()
 
-    def diff_slice(self, data, plot = 'Energy', indices = [], xlims = None, figure_size = (6,8)):
+    def diff_slice(self, analysis_object, diff_key = 'epix_ROI_1_summed_difference_normalized', 
+                   off_key = 'epix_ROI_1_summed_laser_off_normalized', plot = 'Energy', 
+                   indices = [], xlims = None, figure_size = (6,8)):
+
+        diff = getattr(analysis_object, diff_key)
+        off = getattr(analysis_object, off_key)
 
         if plot == 'Energy':
             plt.figure(figsize=figure_size)
             plt.subplot(3, 1, (1,2))
             for x in indices:
-                plt.plot(data.analyzed_runs[0].kbeta_energy, data.difference_spectrum[x,:], label = str(data.time_bins[x].round(2)) + ' ps')
+                plt.plot(np.arange(len(diff[x,:])), diff[x,:], label = str(analysis_object.time_bins[x].round(2)) + ' ps')
                 plt.xlim(xlims)
-                plt.xlabel("Energy [keV]")
+                plt.xlabel("Pixel")
                 plt.ylabel("Difference")
-                plt.title('Runs: ' + str(data.runs), fontsize=10)
+                plt.title('Runs: ' + str(analysis_object.runs), fontsize=10)
                 plt.minorticks_on()
                 plt.legend(fontsize = 10)
             plt.subplot(3, 1, 3)
-            plt.plot(data.analyzed_runs[0].kbeta_energy, data.summed_laser_off_normalized[0], color = 'k', label = "Laser off")
+            plt.plot(np.arange(len(off[0,:])), off[0,:], color = 'k', label = "Laser off")
             plt.xlim(xlims)
             plt.minorticks_on()
-            plt.xlabel("Energy [keV]")
+            plt.xlabel("Pixels")
             plt.ylabel("Intensity")
             plt.legend(fontsize = 10)
             plt.tight_layout()
