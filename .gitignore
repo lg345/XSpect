@@ -2,3 +2,5 @@
 .ipynb_checkpoints/
 Controller_Plans.ipynb
 XSpect_XES_examples.ipynb
+*.swp
+XSpect/*.swp

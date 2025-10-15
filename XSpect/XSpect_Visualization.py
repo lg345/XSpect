@@ -144,7 +144,7 @@ class XESVisualization(SpectroscopyVisualization):
             energy=np.linspace(0,np.shape(laser_on_spectrum),1)
         #vmin, vmax = np.percentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
-        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xes_analysis.mintime,xes_analysis.maxtime,energy[0],energy[-1]])
+        plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto')
         plt.colorbar()
         plt.xlabel('Time (ps)')
         plt.ylabel('Energy (keV)')

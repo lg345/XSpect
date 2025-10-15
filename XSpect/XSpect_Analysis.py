@@ -1066,6 +1066,49 @@ class XESAnalysis(SpectroscopyAnalysis):
         # Update status
         run.update_status(f'Detector binned in time into key: {detector_key}_scanvar_reduced')
 
+    def combine_runs(self, analysis_object):
+        roi_list = []
+        for i in range(len(analysis_object.rois)):
+            roi_list.append('epix_ROI_%i' % (i+1))
+        setattr(analysis_object, 'roi_list', roi_list)
+
+        for roi in roi_list:
+            label_laser_off = roi + '_xray_not_laser_reduced_time_binned'
+            xes = getattr(analysis_object.analyzed_runs[0], label_laser_off)
+            label_laser_on = roi + '_simultaneous_laser_reduced_time_binned'
+            xes_laser = getattr(analysis_object.analyzed_runs[0], label_laser_on)
+
+            label_laser_off_std = roi + '_xray_not_laser_reduced_std'
+            label_laser_on_std = roi + '_simultaneous_laser_reduced_std'
+
+            summed_laser_off_coll = np.empty(((len(analysis_object.analyzed_runs),) + xes.shape))
+            summed_laser_on_coll = np.empty(((len(analysis_object.analyzed_runs),) + xes.shape))
+            summed_laser_off_var = np.empty(((len(analysis_object.analyzed_runs),) + xes.shape))
+            summed_laser_on_var = np.empty(((len(analysis_object.analyzed_runs),) + xes.shape))
+            
+
+            for i, run in enumerate(analysis_object.analyzed_runs):
+                summed_laser_off_coll[i,:] = getattr(run, label_laser_off)
+                summed_laser_on_coll[i,:] = getattr(run, label_laser_on)
+                summed_laser_off_var[i,:] = getattr(run, label_laser_off_std)**2
+                summed_laser_on_var[i,:] = getattr(run, label_laser_on_std)**2
+
+            summed_laser_off = np.nansum(summed_laser_off_coll, axis = 0)
+            summed_laser_on = np.nansum(summed_laser_on_coll, axis = 0)
+            summed_laser_off_std = np.sqrt(np.nansum(summed_laser_off_var, axis = 0))
+            summed_laser_on_std = np.sqrt(np.nansum(summed_laser_on_var, axis = 0))
+
+            setattr(analysis_object, roi + '_summed_laser_off', summed_laser_off)
+            setattr(analysis_object, roi + '_summed_laser_on', summed_laser_on)
+            setattr(analysis_object, roi + '_summed_laser_off_std', summed_laser_off_std)
+            setattr(analysis_object, roi + '_summed_laser_on_std', summed_laser_on_std)
+
+            self.normalize_xes(analysis_object, roi + '_summed_laser_off', pixel_range = [0,None])
+            self.normalize_xes(analysis_object, roi + '_summed_laser_on', pixel_range = [0,None])
+
+            setattr(analysis_object, roi + '_summed_difference_normalized', getattr(analysis_object, roi + '_summed_laser_on_normalized') - getattr(analysis_object, roi + '_summed_laser_off_normalized'))
+            setattr(analysis_object, roi + '_summed_difference_normalized_std', np.sqrt(getattr(analysis_object, roi + '_summed_laser_on_normalized_std')**2 + getattr(analysis_object, roi + '_summed_laser_off_normalized_std')**2))
+
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
         pass;

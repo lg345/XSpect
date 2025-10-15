@@ -307,7 +307,7 @@ class BatchAnalysis:
         runs_per_core = total_runs / cores if cores > 0 else 0
 
         # Update status with statistics
-        self.update_status(f"---Parallel Analysis Stats---.")
+        self.update_status(f"---Parallel-Analysis-Stats---")
         self.update_status(f"Total time: {total_time:.2f} seconds.")
         self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
         self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
@@ -316,67 +316,15 @@ class BatchAnalysis:
         self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
-
         if errors:
             self.update_status(f"Errors encountered during parallel processing: {len(errors)}")
-        
+        self.update_status(f"------------------------------") 
 
         self.update_status(f"Combining analyzed_runs for each ROI.")
 
-        roi_list = []
-        for i in range(len(self.rois)):
-            roi_list.append('epix_ROI_%i' % (i+1))
-        setattr(self, 'roi_list', roi_list)
+        analysis.combine_runs(self)
 
-        for roi in roi_list:
-            label_laser_off = roi + '_xray_not_laser_reduced_time_binned'
-            xes = getattr(self.analyzed_runs[0], label_laser_off)
-            label_laser_on = roi + '_simultaneous_laser_reduced_time_binned'
-            xes_laser = getattr(self.analyzed_runs[0], label_laser_on)
-
-            label_laser_off_std = roi + '_xray_not_laser_reduced_std'
-            label_laser_on_std = roi + '_simultaneous_laser_reduced_std'
-
-            # summed_laser_off = np.zeros_like(xes)
-            # summed_laser_on = np.zeros_like(xes)
-            # summed_laser_off_var = np.zeros_like(xes)
-            # summed_laser_on_var = np.zeros_like(xes)
-
-            summed_laser_off_coll = np.empty(((len(self.analyzed_runs),) + xes.shape))
-            summed_laser_on_coll = np.empty(((len(self.analyzed_runs),) + xes.shape))
-            summed_laser_off_var = np.empty(((len(self.analyzed_runs),) + xes.shape))
-            summed_laser_on_var = np.empty(((len(self.analyzed_runs),) + xes.shape))
-            
-
-            for i, run in enumerate(self.analyzed_runs):
-                summed_laser_off_coll[i,:] = getattr(run, label_laser_off)
-                summed_laser_on_coll[i,:] = getattr(run, label_laser_on)
-                summed_laser_off_var[i,:] = getattr(run, label_laser_off_std)**2
-                summed_laser_on_var[i,:] = getattr(run, label_laser_on_std)**2
-                # summed_laser_off += getattr(run,label_laser_off)
-                # summed_laser_on += getattr(run, label_laser_on)
-                # summed_laser_off_var += getattr(run, label_laser_off_std)**2
-                # summed_laser_on_var += getattr(run, label_laser_on_std)**2
-
-            summed_laser_off = np.nansum(summed_laser_off_coll, axis = 0)
-            summed_laser_on = np.nansum(summed_laser_on_coll, axis = 0)
-            summed_laser_off_std = np.sqrt(np.nansum(summed_laser_off_var, axis = 0))
-            summed_laser_on_std = np.sqrt(np.nansum(summed_laser_on_var, axis = 0))
-
-            setattr(self, roi + '_summed_laser_off', summed_laser_off)
-            setattr(self, roi + '_summed_laser_on', summed_laser_on)
-            setattr(self, roi + '_summed_laser_off_std', summed_laser_off_std)
-            setattr(self, roi + '_summed_laser_on_std', summed_laser_on_std)
-            # setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
-            # setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
-
-            analysis.normalize_xes(self, roi + '_summed_laser_off', pixel_range = [0,None])
-            analysis.normalize_xes(self, roi + '_summed_laser_on', pixel_range = [0,None])
-
-            setattr(self, roi + '_summed_difference_normalized', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
-            setattr(self, roi + '_summed_difference_normalized_std', np.sqrt(getattr(self, roi + '_summed_laser_on_normalized_std')**2 + getattr(self, roi + '_summed_laser_off_normalized_std')**2))
-
-        self.update_status(f"Analysis Completed!")
+        self.update_status(f"Analysis completed!")
 
     def saveobject(self, filename):
         filename =  str(filename) + '_' + datetime.now().strftime("%Y-%m-%d_%H%M%S") + '.pkl'
