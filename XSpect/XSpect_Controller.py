@@ -794,6 +794,32 @@ class XASBatchAnalysis(BatchAnalysis):
         self.numpoints_ccm=90
         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         self.filters=[]
+    def primary_analysis_loop(self, experiment, verbose=False):
+        self.update_status(f"Starting primary analysis loop with experiment={experiment}, verbose={verbose}.")
+        analyzed_runs = []
+        for run in self.runs:
+            analyzed_runs.append(self.primary_analysis(experiment, run, verbose))
+        self.analyzed_runs = analyzed_runs
+        self.update_status("Primary analysis loop completed.")
+    def primary_analysis_parallel_loop(self, cores, experiment, verbose=False):
+        self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
+        pool = Pool(processes=cores)
+        analyzed_runs = []
+
+        def callback(result):
+            analyzed_runs.append(result)
+
+        with tqdm(total=len(self.runs), desc="Processing Runs", unit="Run") as pbar:
+            for analyzed_run in pool.imap(partial(self.primary_analysis, experiment=experiment, verbose=verbose), self.runs):
+                pbar.update(1)
+                analyzed_runs.append(analyzed_run)
+
+        pool.close()
+        pool.join()
+
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        self.analyzed_runs = analyzed_runs
+        self.update_status("Parallel analysis loop completed.")
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
