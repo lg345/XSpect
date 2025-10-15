@@ -801,7 +801,7 @@ class XASBatchAnalysis(BatchAnalysis):
         f.load_run_keys(self.keys,self.friendly_names)
         if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
-            f.ipm=f.scattering[:-1]
+            f.ipm=f.scattering[:]
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
