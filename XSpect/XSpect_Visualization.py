@@ -223,17 +223,25 @@ class XESVisualization(SpectroscopyVisualization):
         plt.tight_layout()
 
     def diff_slice(self, analysis_object, diff_key = 'epix_ROI_1_summed_difference_normalized', 
-                   off_key = 'epix_ROI_1_summed_laser_off_normalized', plot = 'Energy', 
-                   indices = [], xlims = None, figure_size = (6,8)):
+                   off_key = 'epix_ROI_1_summed_laser_off_normalized', err_key = 'epix_ROI_1_summed_difference_normalized_std',
+                   plot = 'Energy', indices = [], xlims = None, figure_size = (6,8)):
 
+        print(f"Plotting {plot} spectra using keys: {diff_key} and {off_key}")
         diff = getattr(analysis_object, diff_key)
         off = getattr(analysis_object, off_key)
+        err = getattr(analysis_object, err_key)
 
         if plot == 'Energy':
             plt.figure(figsize=figure_size)
             plt.subplot(3, 1, (1,2))
-            for x in indices:
-                plt.plot(np.arange(len(diff[x,:])), diff[x,:], label = str(analysis_object.time_bins[x].round(2)) + ' ps')
+            for i in indices:
+                x = np.arange(len(diff[i,:]))
+                y = diff[i,:]
+                sigma_3 = err[i,:]*3 # 3 sigma error
+                ymax = y + sigma_3
+                ymin = y - sigma_3
+                plt.fill_between(x, ymin, ymax, alpha=0.5, label=str(analysis_object.time_bins[i].round(2)) + ' ps - 3$\\sigma$')
+                plt.plot(x, y, linewidth=1)
                 plt.xlim(xlims)
                 plt.xlabel("Pixel")
                 plt.ylabel("Difference")
@@ -252,27 +260,46 @@ class XESVisualization(SpectroscopyVisualization):
         if plot == 'Time':
             plt.figure(figsize=figure_size)
             if type(indices) is list: 
+                # If a list of int indices iterate plotting each spectrum
                 if type(indices[0]) is int: 
-                    for x in indices:
-                        plt.plot(data.time_bins, data.difference_spectrum[:-1,x], label = str(data.analyzed_runs[0].kbeta_energy[x].round(2)) + ' eV')
+                    for i in indices:
+                        x = analysis_object.time_bins
+                        y = diff[:,i]
+                        sigma_3 = err[:,i]*3 # 3 sigma error
+                        ymax = y + sigma_3
+                        ymin = y - sigma_3
+
+                        plt.fill_between(x, ymin, ymax, alpha=0.5, label='Pixel ' + str(i) + ' - 3$\\sigma$')
+                        plt.plot(x, y, linewidth=1)
                         plt.xlim(xlims)
-                        plt.xlabel("Energy [keV]")
+                        plt.xlabel("Time [ps]")
                         plt.ylabel("Difference")
                         plt.minorticks_on() 
-                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.title('Runs: ' + str(analysis_object.runs), fontsize=10)
                         plt.legend()
                     plt.tight_layout()
+
+                # If a list of list of int indices ranges iterate summing each list of ints and then plotting the averaged trace
                 elif type(indices[0]) is list:
-                    for x in indices:
-                        sum_data = np.nansum(data.difference_spectrum[:,x[0]:x[1]], axis = 1)
-                        sum_data = (1/np.trapz(sum_data)) * sum_data
-                        energy_range = str(data.analyzed_runs[0].kbeta_energy[x[0]].round(1)) + ' - ' + str(data.analyzed_runs[0].kbeta_energy[x[1]].round(2))
-                        plt.plot(data.time_bins, sum_data[:-1], label = energy_range + ' eV')
+                    for i in indices:
+                        x = analysis_object.time_bins
+                        y = np.nansum(diff[:,i[0]:i[1]], axis = 1)
+                        y_norm = (1/np.trapz(y))
+                        y = y_norm * y
+                        error = np.sqrt(np.nansum(err[:,i[0]:i[1]]**2, axis = 1))
+                        error = y_norm * error
+                        sigma_3 = error*3 # 3 sigma error
+                        ymax = y + sigma_3
+                        ymin = y - sigma_3
+
+                        pixel_range = str(i[0]) + ' - ' + str(i[1])
+                        plt.fill_between(x, ymin, ymax, alpha=0.5, label=pixel_range + ' - 3$\\sigma$')
+                        plt.plot(x, y, linewidth=1)
                         plt.xlim(xlims)
-                        plt.xlabel("Energy [keV]")
+                        plt.xlabel("Time [ps]")
                         plt.ylabel("Difference")
                         plt.minorticks_on()
-                        plt.title('Runs: ' + str(data.runs), fontsize=10)
+                        plt.title('Runs: ' + str(analysis_object.runs), fontsize=10)
                         plt.legend()
                     plt.tight_layout()
 
