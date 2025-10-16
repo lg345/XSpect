@@ -1066,7 +1066,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         # Update status
         run.update_status(f'Detector binned in time into key: {detector_key}_scanvar_reduced')
 
-    def combine_runs(self, analysis_object):
+    def combine_runs(self, analysis_object, average_laser_off=False):
         roi_list = []
         for i in range(len(analysis_object.rois)):
             roi_list.append('epix_ROI_%i' % (i+1))
@@ -1097,6 +1097,14 @@ class XESAnalysis(SpectroscopyAnalysis):
             summed_laser_on = np.nansum(summed_laser_on_coll, axis = 0)
             summed_laser_off_std = np.sqrt(np.nansum(summed_laser_off_var, axis = 0))
             summed_laser_on_std = np.sqrt(np.nansum(summed_laser_on_var, axis = 0))
+           
+            if average_laser_off == True:
+                print(summed_laser_off.shape)
+                summed_laser_off = np.nansum(summed_laser_off, axis = 0)
+                print(summed_laser_off.shape)
+                summed_laser_off = np.tile(summed_laser_off, (summed_laser_on.shape[0], 1))
+                print("on shape:",summed_laser_on.shape)
+                print(summed_laser_off.shape)
 
             setattr(analysis_object, roi + '_summed_laser_off', summed_laser_off)
             setattr(analysis_object, roi + '_summed_laser_on', summed_laser_on)
