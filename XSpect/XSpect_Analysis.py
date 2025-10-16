@@ -1099,12 +1099,11 @@ class XESAnalysis(SpectroscopyAnalysis):
             summed_laser_on_std = np.sqrt(np.nansum(summed_laser_on_var, axis = 0))
            
             if average_laser_off == True:
-                print(summed_laser_off.shape)
                 summed_laser_off = np.nansum(summed_laser_off, axis = 0)
-                print(summed_laser_off.shape)
                 summed_laser_off = np.tile(summed_laser_off, (summed_laser_on.shape[0], 1))
-                print("on shape:",summed_laser_on.shape)
-                print(summed_laser_off.shape)
+                summed_laser_off_var = summed_laser_off_std**2
+                summed_laser_off_std = np.sqrt(np.nansum(summed_laser_off_var, axis = 0))
+                summed_laser_off_std = np.tile(summed_laser_off_std, (summed_laser_on.shape[0], 1))
 
             setattr(analysis_object, roi + '_summed_laser_off', summed_laser_off)
             setattr(analysis_object, roi + '_summed_laser_on', summed_laser_on)
