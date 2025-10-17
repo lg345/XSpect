@@ -593,7 +593,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                     start = time.time()
                     setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
                     end = time.time()
-                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[ii], end - start))
             elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
                 f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
                 start = time.time()
