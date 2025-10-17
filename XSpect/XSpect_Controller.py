@@ -599,7 +599,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                 start = time.time()
                 setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
                 end = time.time()
-                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[0], end - start))
             elif self.angle != 0 and not isinstance(self.angle, list):
                 start = time.time()
                 setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
