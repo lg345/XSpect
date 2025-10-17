@@ -1,24 +1,42 @@
-# XSpecT  
+Overview
+====================
 
-## Installation  
+*XSpecT* is an analysis tool for ultrafast x-ray experiments.
+It is written in python_ following the principles of object-oriented programming.
 
-Clone the repository:
+Installation
+--------------------
 
-   ```bash
-   git clone https://github.com/lg345/XSpect.git
-   ```
+You can download the *XSpecT* source code from the github repo_.
 
-Ensure that you have the necessary dependencies installed on your system. 
+Documentation
+--------------------
 
-## Getting Started  
+Detailed documentation of the code can be found here_.
 
-Check out our [documentation](https://lg345.github.io/XSpect/index.html) page for source code details and examples to get started. 
+Addtionally, example jupyter-notebooks can be found in the examples_ folder.
 
-## License  
-Copyright 2025 XSpecT Team
+
+License
+--------------------
+
+Copyright 2024 XSpecT Team
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
 The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
 THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+Links
+--------------------
+.. toctree::
+   :maxdepth: 2
+
+   index
+   modules
+
+.. _python: https://www.python.org/
+.. _repo: https://github.com/lg345/XSpecT
+.. _here: modules.html
+.. _examples: https://github.com/lg345/XSpecT/tree/master/examples

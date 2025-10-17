@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>XSpect.XSpect_PostProcessing &mdash; XSpecT 0.1 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=80d5e7a1" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=19f00094" />
+
+  
+  <!--[if lt IE 9]>
+    <script src="../../_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script src="../../_static/jquery.js?v=5d32c60e"></script>
+        <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+        <script src="../../_static/documentation_options.js?v=2709fde1"></script>
+        <script src="../../_static/doctools.js?v=9a2dae69"></script>
+        <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            XSpecT
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+<li class="toctree-l1"><a class="reference internal" href="../../modules.html">XSpecT</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">XSpecT</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">XSpect.XSpect_PostProcessing</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for XSpect.XSpect_PostProcessing</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">matplotlib</span> <span class="k">as</span> <span class="nn">plt</span>
+
+<span class="n">width</span> <span class="o">=</span> <span class="mf">1.5</span>
+<span class="n">length</span> <span class="o">=</span> <span class="mi">5</span>
+
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;figure.figsize&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="mf">7.5</span><span class="p">,</span> <span class="mf">4.5</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;font.size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="mi">12</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;xtick.major.width&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">width</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;ytick.major.width&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">width</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;xtick.major.size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">length</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;ytick.major.size&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="n">length</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;xtick.top&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;ytick.right&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="kc">True</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;xtick.direction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;in&#39;</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">rcParams</span><span class="p">[</span><span class="s1">&#39;ytick.direction&#39;</span><span class="p">]</span> <span class="o">=</span> <span class="s1">&#39;in&#39;</span>
+
+
+<div class="viewcode-block" id="plotting">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.plotting">[docs]</a>
+<span class="k">class</span> <span class="nc">plotting</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span></div>
+
+
+
+<div class="viewcode-block" id="analysis_functions">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions">[docs]</a>
+<span class="k">class</span> <span class="nc">analysis_functions</span><span class="p">:</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="analysis_functions.expfunc">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.expfunc">[docs]</a>
+    <span class="k">def</span> <span class="nf">expfunc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">amp</span><span class="o">=</span><span class="p">[],</span> <span class="n">x0</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="c1"># returns a vector (or matrix of column vectors, depending on the length of k) containing an exponential decay evalutated over x values x with rate constant(s) k</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="p">[</span><span class="n">k</span><span class="p">]</span>
+        <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>  <span class="c1"># always takes positive values and enforces exp decay</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span>
+            <span class="n">f</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">x0</span><span class="p">))</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.expfunc_heaviside">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.expfunc_heaviside">[docs]</a>
+    <span class="k">def</span> <span class="nf">expfunc_heaviside</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">amp</span><span class="o">=</span><span class="p">[],</span> <span class="n">x0</span><span class="o">=</span><span class="mi">0</span><span class="p">):</span>
+        <span class="c1"># returns a vector (or matrix of column vectors) containing an exponential decay with rate constant(s) k multiplied by the heaviside step function (x &lt; 0, y = 0; x = 0, y = 0.5; x &gt; 0, y = 1) evaluated over x</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">k</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">amp</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">amp</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">amp</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+
+        <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)))</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span>
+            <span class="c1"># h(x) = 0 (x &lt;= 0), h(x) = 1 (x &gt; 0)</span>
+            <span class="n">f</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">amp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">x0</span><span class="p">))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">heaviside</span><span class="p">((</span><span class="n">x</span><span class="o">-</span><span class="n">x0</span><span class="p">),</span> <span class="mf">0.5</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.gaussfunc">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.gaussfunc">[docs]</a>
+    <span class="k">def</span> <span class="nf">gaussfunc</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">center</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.gaussfunc_norm">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.gaussfunc_norm">[docs]</a>
+    <span class="k">def</span> <span class="nf">gaussfunc_norm</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">):</span>
+        <span class="k">return</span> <span class="p">(</span><span class="mi">1</span><span class="o">/</span><span class="p">(</span><span class="n">sigma</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">pi</span><span class="p">)))</span><span class="o">*</span><span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">((</span><span class="o">-</span><span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">center</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="p">(</span><span class="mi">2</span><span class="o">*</span><span class="n">sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.irfconv">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.irfconv">[docs]</a>
+    <span class="k">def</span> <span class="nf">irfconv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">amp</span><span class="o">=</span><span class="p">[]):</span>
+
+        <span class="c1"># numerical convolution between heaviside*exponential and gaussian IRF</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">k</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">amp</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">amp</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">amp</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+
+        <span class="n">dx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">x</span><span class="p">))</span>
+        <span class="n">conv_xgrid</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">)</span><span class="o">*</span><span class="mf">1.2</span><span class="p">,</span> <span class="n">dx</span><span class="o">/</span><span class="mi">10</span><span class="p">)</span>
+        <span class="n">cdx</span> <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diff</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="p">))</span>
+
+        <span class="n">expmat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expfunc_heaviside</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">amp</span><span class="p">)</span>
+        <span class="n">gaussmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty_like</span><span class="p">(</span><span class="n">expmat</span><span class="p">)</span>
+
+        <span class="c1"># for fftconvolve, we need expmat and gaussmat to have same dimensions</span>
+
+        <span class="k">if</span> <span class="n">sigma</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="c1"># if linewidth is given as 0, then convolve with a delta fxn (normalization factor cdx set to 1)</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span>
+                <span class="n">gaussmat</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">unit_impulse</span><span class="p">(</span>
+                    <span class="n">gaussmat</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">idx</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">argmin</span><span class="p">(</span><span class="nb">abs</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="o">-</span><span class="n">center</span><span class="p">)))</span>
+            <span class="n">cdx</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span>
+                <span class="n">gaussmat</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">gaussfunc_norm</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+    <span class="c1">#     elif sigma &lt; 0:</span>
+    <span class="c1">#         print(&#39;Error: cannot have negative width parameter&#39;)</span>
+    <span class="c1">#         print(&#39;Using absolute value of given input&#39;)</span>
+    <span class="c1">#         for i in range(len(k)):</span>
+    <span class="c1">#             gaussmat[:,i] = gaussfunc_norm(conv_xgrid, center, np.abs(sigma))</span>
+
+        <span class="n">pre0</span> <span class="o">=</span> <span class="n">conv_xgrid</span><span class="p">[</span><span class="n">conv_xgrid</span> <span class="o">&lt;</span> <span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">size</span>
+
+        <span class="n">conv_vec</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">signal</span><span class="o">.</span><span class="n">fftconvolve</span><span class="p">(</span><span class="n">expmat</span><span class="p">,</span> <span class="n">gaussmat</span><span class="p">,</span> <span class="n">axes</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="n">conv_vec</span><span class="p">[</span><span class="n">pre0</span><span class="p">:(</span><span class="nb">len</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="p">)</span><span class="o">+</span><span class="n">pre0</span><span class="p">)]</span><span class="o">*</span><span class="n">cdx</span>
+
+        <span class="n">C_interp</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">interpolate</span><span class="o">.</span><span class="n">interp1d</span><span class="p">(</span><span class="n">conv_xgrid</span><span class="p">,</span> <span class="n">C</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)(</span><span class="n">x</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">C_interp</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.irfconv_ana">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.irfconv_ana">[docs]</a>
+    <span class="k">def</span> <span class="nf">irfconv_ana</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">amp</span><span class="o">=</span><span class="p">[]):</span>
+
+        <span class="c1"># returns analytical convolution between heaviside*exponential and gaussian</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">k</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">amp</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">amp</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">amp</span><span class="p">])</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">amp</span><span class="o">.</span><span class="n">size</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">amp</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">ones_like</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">))</span>
+
+        <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="n">f</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">empty</span><span class="p">((</span><span class="nb">len</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)))</span>
+
+        <span class="k">if</span> <span class="n">sigma</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">k</span><span class="p">)):</span>
+                <span class="n">a1</span> <span class="o">=</span> <span class="n">amp</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">/</span><span class="mi">2</span>
+                <span class="n">a2</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="o">-</span><span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">x</span><span class="o">-</span><span class="n">center</span><span class="p">))</span>
+                <span class="n">a3</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">exp</span><span class="p">(</span><span class="mf">0.5</span><span class="o">*</span><span class="p">(</span><span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="n">sigma</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+                <span class="n">a4</span> <span class="o">=</span> <span class="mi">1</span> <span class="o">+</span> \
+                    <span class="n">scipy</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">erf</span><span class="p">(</span>
+                        <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="n">center</span> <span class="o">-</span> <span class="n">k</span><span class="p">[</span><span class="n">i</span><span class="p">]</span><span class="o">*</span><span class="p">(</span><span class="n">sigma</span><span class="o">**</span><span class="mi">2</span><span class="p">))</span><span class="o">/</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="mi">2</span><span class="p">)</span><span class="o">*</span><span class="n">sigma</span><span class="p">))</span>
+                <span class="n">f</span><span class="p">[:,</span> <span class="n">i</span><span class="p">]</span> <span class="o">=</span> <span class="n">a1</span><span class="o">*</span><span class="n">a2</span><span class="o">*</span><span class="n">a3</span><span class="o">*</span><span class="n">a4</span>
+        <span class="k">elif</span> <span class="n">sigma</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">f</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expfunc_heaviside</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">amp</span><span class="o">=</span><span class="n">amp</span><span class="p">,</span> <span class="n">x0</span><span class="o">=</span><span class="n">center</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Error: IRF linewidth must be positive&#39;</span><span class="p">)</span>
+            <span class="k">return</span>
+        <span class="k">return</span> <span class="n">f</span></div>
+
+
+<div class="viewcode-block" id="analysis_functions.kmatsolver">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.analysis_functions.kmatsolver">[docs]</a>
+    <span class="k">def</span> <span class="nf">kmatsolver</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kmatrix</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">X0</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">irf_option</span><span class="o">=</span><span class="s1">&#39;numerical&#39;</span><span class="p">,</span> <span class="n">printopt</span><span class="o">=</span><span class="kc">True</span><span class="p">):</span>
+
+        <span class="c1"># Berberan-Santos, M. N. and Martinho, J. M. G. The integration of kinetic rate equations by matrix methods. J. Chem. Ed. 1990, 67, 375</span>
+
+        <span class="c1"># For solving a system of rate equations that are purely composed of unimolecular (first-order) steps, the analytical solution always exists and can be found using the rate constant (k) matrix and its eigenvectors/values</span>
+
+        <span class="c1"># dX1/dt = k11*X1 + k12*X2</span>
+        <span class="c1"># dX2/dt = k21*X1 + k22*X2</span>
+        <span class="c1">##</span>
+        <span class="c1"># Recast in matrix form:</span>
+        <span class="c1">##</span>
+        <span class="c1"># [dX1/dt]    [k11 k12] [X1]</span>
+        <span class="c1"># [dX2/dt] =  [k21 k22] [X2]</span>
+        <span class="c1">##</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">float</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="n">k</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">k</span><span class="p">])</span>
+
+        <span class="c1"># kmatrix is easiest to define as a lambda function that accepts a list of rate constants and uses that to populate an array (kmat)</span>
+
+        <span class="n">kmat</span> <span class="o">=</span> <span class="n">kmatrix</span><span class="p">(</span><span class="n">k</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">kmat</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span><span class="mi">1</span><span class="p">,):</span>
+            <span class="n">kmat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">expand_dims</span><span class="p">(</span><span class="n">kmat</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">printopt</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Printing k Matrix:&#39;</span><span class="p">)</span>
+            <span class="nb">print</span><span class="p">(</span><span class="n">kmat</span><span class="p">)</span>
+
+        <span class="c1"># solve eigenvalues/eigenvectors of k matrix; the eigenvalues are the rates and the eigenvectors inform what linear combination of exponentials leads to the solution of the system of equations</span>
+
+        <span class="n">eigval</span><span class="p">,</span> <span class="n">eigvec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">eig</span><span class="p">(</span><span class="n">kmat</span><span class="p">)</span>
+
+        <span class="c1"># a is a set of constants dependent on the eigenvectors and initial amplitudes</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">X0</span><span class="p">)</span> <span class="o">==</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">eigvec</span><span class="p">)</span><span class="o">*</span><span class="n">X0</span>
+        <span class="k">elif</span> <span class="nb">len</span><span class="p">(</span><span class="n">X0</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">a</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">eigvec</span><span class="p">)</span><span class="nd">@X0</span>
+
+        <span class="c1"># evaluate exponential fxns (with or without gaussian IRF convolution) and store as column vectors in v</span>
+
+        <span class="k">if</span> <span class="n">irf_option</span> <span class="o">==</span> <span class="s1">&#39;numerical&#39;</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">irfconv</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">eigval</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">irf_option</span> <span class="o">==</span> <span class="s1">&#39;analytical&#39;</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">irfconv_ana</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">eigval</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">irf_option</span> <span class="o">==</span> <span class="s1">&#39;none&#39;</span><span class="p">:</span>
+            <span class="n">v</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">expfunc_heaviside</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">eigval</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;irf_option can only take &quot;numerical&quot;, &quot;analytical&quot;, or &quot;none&quot;&#39;</span><span class="p">)</span>
+
+        <span class="c1"># Xt is the final concentration matrix</span>
+
+        <span class="n">Xt</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">eigvec</span><span class="nd">@np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">a</span><span class="o">*</span><span class="n">v</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">Xt</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="post_analysis">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis">[docs]</a>
+<span class="k">class</span> <span class="nc">post_analysis</span><span class="p">(</span><span class="n">analysis_functions</span><span class="p">):</span>
+    <span class="k">def</span> <span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">pass</span>
+
+<div class="viewcode-block" id="post_analysis.svdplot">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.svdplot">[docs]</a>
+    <span class="k">def</span> <span class="nf">svdplot</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">xval</span><span class="p">,</span> <span class="n">yval</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">ncomp</span><span class="p">):</span>
+        <span class="n">U</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">ncols</span><span class="o">=</span><span class="mi">3</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">figsize</span><span class="o">=</span><span class="p">(</span><span class="mi">8</span><span class="p">,</span> <span class="mi">4</span><span class="p">))</span>
+
+        <span class="n">offsetU</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">offsetbaseU</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">U</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="n">ncomp</span><span class="p">]))</span>
+        <span class="n">offsetV</span> <span class="o">=</span> <span class="mi">0</span>
+        <span class="n">offsetbaseV</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">max</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">abs</span><span class="p">(</span><span class="n">V</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">ncomp</span><span class="p">,</span> <span class="p">:]))</span>
+        <span class="n">offsetlistU</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">offsetlistV</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">SVDindex</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="k">for</span> <span class="n">ii</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ncomp</span><span class="p">):</span>
+            <span class="n">SVDindex</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ii</span><span class="o">+</span><span class="mi">1</span><span class="p">)</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">xval</span><span class="p">,</span> <span class="n">U</span><span class="p">[:,</span> <span class="n">ii</span><span class="p">]</span> <span class="o">+</span> <span class="n">offsetU</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">[</span><span class="n">ii</span><span class="p">],</span> <span class="n">S</span><span class="p">[</span><span class="n">ii</span><span class="p">])</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">yval</span><span class="p">,</span> <span class="n">V</span><span class="p">[</span><span class="n">ii</span><span class="p">,</span> <span class="p">:]</span> <span class="o">+</span> <span class="n">offsetV</span><span class="p">,</span> <span class="n">linewidth</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span>
+            <span class="n">offsetlistU</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offsetU</span><span class="p">)</span>
+            <span class="n">offsetlistV</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">offsetV</span><span class="p">)</span>
+            <span class="n">offsetU</span> <span class="o">-=</span> <span class="n">offsetbaseU</span>
+            <span class="n">offsetV</span> <span class="o">-=</span> <span class="n">offsetbaseV</span>
+
+        <span class="n">width</span> <span class="o">=</span> <span class="mf">1.5</span>
+
+        <span class="k">for</span> <span class="n">plot</span> <span class="ow">in</span> <span class="n">ax</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">]:</span>
+                <span class="n">plot</span><span class="o">.</span><span class="n">spines</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span><span class="o">.</span><span class="n">set_linewidth</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">offsetlistU</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Left Singular Vectors&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="nb">min</span><span class="p">(</span><span class="n">xval</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">xval</span><span class="p">)])</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_yscale</span><span class="p">(</span><span class="s1">&#39;log&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="nb">min</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="nb">max</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span><span class="o">+</span><span class="mi">1</span><span class="p">])</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticks</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xticklabels</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Scree Plot&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_yticks</span><span class="p">(</span><span class="n">offsetlistV</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_yticklabels</span><span class="p">(</span><span class="n">SVDindex</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Right Singular Vectors&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">2</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">([</span><span class="nb">min</span><span class="p">(</span><span class="n">yval</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">yval</span><span class="p">)])</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.svdreconstruct">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.svdreconstruct">[docs]</a>
+    <span class="k">def</span> <span class="nf">svdreconstruct</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">ncomp</span><span class="p">):</span>
+        <span class="n">U</span><span class="p">,</span> <span class="n">S</span><span class="p">,</span> <span class="n">V</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">svd</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+
+        <span class="n">data_reconstruct</span> <span class="o">=</span> <span class="n">U</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">:</span><span class="n">ncomp</span><span class="p">]</span><span class="nd">@np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">S</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">ncomp</span><span class="p">])</span><span class="nd">@V</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">ncomp</span><span class="p">,</span> <span class="p">:]</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;SVD Reconstruction performed with </span><span class="si">{}</span><span class="s1"> components&#39;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">ncomp</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">data_reconstruct</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.parse_theta">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.parse_theta">[docs]</a>
+    <span class="k">def</span> <span class="nf">parse_theta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">k</span><span class="o">=</span><span class="p">[],</span> <span class="n">center</span><span class="o">=</span><span class="p">[],</span> <span class="n">sigma</span><span class="o">=</span><span class="p">[],</span> <span class="n">amplitudes</span><span class="o">=</span><span class="p">[]):</span>
+        <span class="n">theta_parser</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;k&#39;</span><span class="p">:</span> <span class="n">k</span><span class="p">,</span> <span class="s1">&#39;center&#39;</span><span class="p">:</span> <span class="n">center</span><span class="p">,</span>
+                        <span class="s1">&#39;sigma&#39;</span><span class="p">:</span> <span class="n">sigma</span><span class="p">,</span> <span class="s1">&#39;amplitudes&#39;</span><span class="p">:</span> <span class="n">amplitudes</span><span class="p">}</span>
+
+        <span class="k">return</span> <span class="n">theta_parser</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.construct_theta">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.construct_theta">[docs]</a>
+    <span class="k">def</span> <span class="nf">construct_theta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">theta_parser</span><span class="p">):</span>
+        <span class="n">theta</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">theta_parser</span><span class="o">.</span><span class="n">keys</span><span class="p">())):</span>
+            <span class="n">theta</span> <span class="o">=</span> <span class="n">theta</span> <span class="o">+</span> <span class="n">theta_parser</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">theta</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.read_theta">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.read_theta">[docs]</a>
+    <span class="k">def</span> <span class="nf">read_theta</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">theta_parser</span><span class="p">):</span>
+
+        <span class="n">k_guess</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">center_guess</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">sigma_guess</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">amplitude_guess</span> <span class="o">=</span> <span class="p">[]</span>
+
+        <span class="n">nk</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">theta_parser</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">])</span>
+        <span class="n">ncenter</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">theta_parser</span><span class="p">[</span><span class="s1">&#39;center&#39;</span><span class="p">])</span>
+        <span class="n">nsigma</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">theta_parser</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">])</span>
+        <span class="n">namplitudes</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">theta_parser</span><span class="p">[</span><span class="s1">&#39;amplitudes&#39;</span><span class="p">])</span>
+
+        <span class="n">k_guess</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="mi">0</span><span class="p">:</span><span class="n">nk</span><span class="p">]</span>
+        <span class="n">center_guess</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="n">nk</span><span class="p">:</span><span class="n">nk</span><span class="o">+</span><span class="n">ncenter</span><span class="p">]</span>
+        <span class="n">sigma_guess</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="n">nk</span><span class="o">+</span><span class="n">ncenter</span><span class="p">:</span><span class="n">nk</span><span class="o">+</span><span class="n">ncenter</span><span class="o">+</span><span class="n">nsigma</span><span class="p">]</span>
+        <span class="n">amplitudes_guess</span> <span class="o">=</span> <span class="n">theta</span><span class="p">[</span><span class="n">nk</span><span class="o">+</span><span class="n">ncenter</span> <span class="o">+</span>
+                                 <span class="n">nsigma</span><span class="p">:</span><span class="n">nk</span><span class="o">+</span><span class="n">ncenter</span><span class="o">+</span><span class="n">nsigma</span><span class="o">+</span><span class="n">namplitudes</span><span class="p">]</span>
+
+        <span class="n">parsed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_theta</span><span class="p">(</span>
+            <span class="n">k</span><span class="o">=</span><span class="n">k_guess</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="n">center_guess</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma_guess</span><span class="p">,</span> <span class="n">amplitudes</span><span class="o">=</span><span class="n">amplitudes_guess</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">parsed</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.varproj">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.varproj">[docs]</a>
+    <span class="k">def</span> <span class="nf">varproj</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">kmatrix</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">X0</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">C</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">kmatsolver</span><span class="p">(</span><span class="n">kmatrix</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">k</span><span class="p">,</span> <span class="n">X0</span><span class="p">,</span> <span class="n">center</span><span class="p">,</span> <span class="n">sigma</span><span class="p">,</span> <span class="n">printopt</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+        <span class="n">C_inv</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">pinv</span><span class="p">(</span><span class="n">C</span><span class="p">)</span>
+
+        <span class="n">Et</span> <span class="o">=</span> <span class="n">C_inv</span><span class="nd">@data</span>
+
+        <span class="n">SimA</span> <span class="o">=</span> <span class="n">C</span><span class="nd">@Et</span>
+
+        <span class="k">return</span> <span class="n">C</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">transpose</span><span class="p">(</span><span class="n">Et</span><span class="p">),</span> <span class="n">SimA</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.targetobjective">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.targetobjective">[docs]</a>
+    <span class="k">def</span> <span class="nf">targetobjective</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">theta</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">kmatrix</span><span class="p">,</span> <span class="n">X0</span><span class="p">,</span> <span class="n">theta_parser</span><span class="p">,</span> <span class="n">data</span><span class="p">):</span>
+        <span class="n">theta_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_theta</span><span class="p">(</span><span class="n">theta</span><span class="p">,</span> <span class="n">theta_parser</span><span class="p">)</span>
+        <span class="n">C_guess</span><span class="p">,</span> <span class="n">DAS</span><span class="p">,</span> <span class="n">SimA</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">varproj</span><span class="p">(</span>
+            <span class="n">kmatrix</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">theta_dict</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">],</span> <span class="n">X0</span><span class="p">,</span> <span class="n">theta_dict</span><span class="p">[</span><span class="s1">&#39;center&#39;</span><span class="p">],</span> <span class="n">theta_dict</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">)</span>
+
+        <span class="n">res</span> <span class="o">=</span> <span class="n">data</span> <span class="o">-</span> <span class="n">SimA</span>
+
+        <span class="n">resl</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">ravel</span><span class="p">()</span>
+
+        <span class="k">return</span> <span class="n">resl</span></div>
+
+
+<div class="viewcode-block" id="post_analysis.targetanalysis_run">
+<a class="viewcode-back" href="../../XSpect.html#XSpect.XSpect_PostProcessing.post_analysis.targetanalysis_run">[docs]</a>
+    <span class="k">def</span> <span class="nf">targetanalysis_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">data</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">kmatrix</span><span class="p">,</span> <span class="n">k_in</span><span class="p">,</span> <span class="n">center_in</span><span class="p">,</span> <span class="n">sigma_in</span><span class="p">,</span> <span class="n">X0_in</span><span class="p">,</span> <span class="n">y</span><span class="o">=</span><span class="p">[],</span> <span class="n">bounds_dict</span><span class="o">=</span><span class="kc">None</span><span class="p">):</span>
+
+        <span class="n">theta_dict</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parse_theta</span><span class="p">(</span><span class="n">k</span><span class="o">=</span><span class="n">k_in</span><span class="p">,</span> <span class="n">center</span><span class="o">=</span><span class="n">center_in</span><span class="p">,</span> <span class="n">sigma</span><span class="o">=</span><span class="n">sigma_in</span><span class="p">)</span>
+        <span class="n">theta_in</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">construct_theta</span><span class="p">(</span><span class="n">theta_dict</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">bounds_dict</span> <span class="o">==</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># set default parameter bounds</span>
+            <span class="n">bounds_dict</span> <span class="o">=</span> <span class="p">{</span><span class="s1">&#39;lb&#39;</span><span class="p">:</span> <span class="p">{},</span> <span class="s1">&#39;ub&#39;</span><span class="p">:</span> <span class="p">{}}</span>
+
+            <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">theta_dict</span><span class="o">.</span><span class="n">keys</span><span class="p">())):</span>
+                <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;lb&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;ub&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span> <span class="o">=</span> <span class="p">[]</span>
+                <span class="k">if</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;k&#39;</span><span class="p">:</span>
+                    <span class="n">default_bound</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;center&#39;</span><span class="p">:</span>
+                    <span class="n">default_bound</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;sigma&#39;</span><span class="p">:</span>
+                    <span class="n">default_bound</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+                <span class="k">elif</span> <span class="n">key</span> <span class="o">==</span> <span class="s1">&#39;amplitudes&#39;</span><span class="p">:</span>
+                    <span class="n">default_bound</span> <span class="o">=</span> <span class="p">[</span><span class="o">-</span><span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">inf</span><span class="p">]</span>
+                <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">theta_dict</span><span class="p">[</span><span class="n">key</span><span class="p">])):</span>
+                    <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;lb&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">default_bound</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+                    <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;ub&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">default_bound</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+
+        <span class="n">lower</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="n">upper</span> <span class="o">=</span> <span class="p">[]</span>
+        <span class="k">for</span> <span class="n">count</span><span class="p">,</span> <span class="n">key</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">list</span><span class="p">(</span><span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;lb&#39;</span><span class="p">]</span><span class="o">.</span><span class="n">keys</span><span class="p">())):</span>
+            <span class="n">lower</span> <span class="o">+=</span> <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;lb&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">upper</span> <span class="o">+=</span> <span class="n">bounds_dict</span><span class="p">[</span><span class="s1">&#39;ub&#39;</span><span class="p">][</span><span class="n">key</span><span class="p">]</span>
+
+        <span class="n">constraints</span> <span class="o">=</span> <span class="p">(</span><span class="n">lower</span><span class="p">,</span> <span class="n">upper</span><span class="p">)</span>
+
+        <span class="n">res_lsq</span> <span class="o">=</span> <span class="n">scipy</span><span class="o">.</span><span class="n">optimize</span><span class="o">.</span><span class="n">least_squares</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">targetobjective</span><span class="p">,</span> <span class="n">theta_in</span><span class="p">,</span> <span class="n">args</span><span class="o">=</span><span class="p">(</span>
+            <span class="n">x</span><span class="p">,</span> <span class="n">kmatrix</span><span class="p">,</span> <span class="n">X0_in</span><span class="p">,</span> <span class="n">theta_dict</span><span class="p">,</span> <span class="n">data</span><span class="p">),</span> <span class="n">method</span><span class="o">=</span><span class="s1">&#39;trf&#39;</span><span class="p">,</span> <span class="n">bounds</span><span class="o">=</span><span class="n">constraints</span><span class="p">)</span>
+
+        <span class="n">theta_out</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">read_theta</span><span class="p">(</span><span class="n">res_lsq</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">theta_dict</span><span class="p">)</span>
+        <span class="k">if</span> <span class="s1">&#39;k&#39;</span> <span class="ow">in</span> <span class="n">theta_out</span><span class="o">.</span><span class="n">keys</span><span class="p">():</span>
+            <span class="n">theta_out</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">][::</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">sort</span><span class="p">()</span>
+
+        <span class="n">C_fit</span><span class="p">,</span> <span class="n">E_fit</span><span class="p">,</span> <span class="n">A_fit</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">varproj</span><span class="p">(</span>
+            <span class="n">kmatrix</span><span class="p">,</span> <span class="n">x</span><span class="p">,</span> <span class="n">theta_out</span><span class="p">[</span><span class="s1">&#39;k&#39;</span><span class="p">],</span> <span class="n">X0_in</span><span class="p">,</span> <span class="n">theta_out</span><span class="p">[</span><span class="s1">&#39;center&#39;</span><span class="p">],</span> <span class="n">theta_out</span><span class="p">[</span><span class="s1">&#39;sigma&#39;</span><span class="p">],</span> <span class="n">data</span><span class="p">)</span>
+
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Fit Parameters:&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">theta_out</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="s1">&#39;Cost:&#39;</span><span class="p">)</span>
+        <span class="nb">print</span><span class="p">(</span><span class="n">res_lsq</span><span class="o">.</span><span class="n">cost</span><span class="p">)</span>
+
+        <span class="n">fig</span><span class="p">,</span> <span class="n">ax</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">subplots</span><span class="p">(</span><span class="n">ncols</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span> <span class="n">nrows</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="n">C_fit</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;Concentration&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;Time&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_ylabel</span><span class="p">(</span><span class="s1">&#39;Amplitude&#39;</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">((</span><span class="nb">min</span><span class="p">(</span><span class="n">x</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">x</span><span class="p">)))</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">y</span><span class="p">,</span> <span class="n">E_fit</span><span class="p">)</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlabel</span><span class="p">(</span><span class="s1">&#39;&#39;</span><span class="p">)</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_xlim</span><span class="p">((</span><span class="nb">min</span><span class="p">(</span><span class="n">y</span><span class="p">),</span> <span class="nb">max</span><span class="p">(</span><span class="n">y</span><span class="p">)))</span>
+        <span class="k">elif</span> <span class="ow">not</span> <span class="n">y</span><span class="p">:</span>
+            <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">E_fit</span><span class="p">)</span>
+        <span class="n">ax</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span><span class="o">.</span><span class="n">set_title</span><span class="p">(</span><span class="s1">&#39;EAS&#39;</span><span class="p">)</span>
+    <span class="c1">#     ax[1].set_ylabel(&#39;Amplitude&#39;)</span>
+
+        <span class="n">fig</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s1">&#39;Target Analysis Results&#39;</span><span class="p">,</span> <span class="n">fontsize</span><span class="o">=</span><span class="mi">16</span><span class="p">)</span>
+
+        <span class="k">for</span> <span class="n">plot</span> <span class="ow">in</span> <span class="n">ax</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">axis</span> <span class="ow">in</span> <span class="p">[</span><span class="s1">&#39;top&#39;</span><span class="p">,</span> <span class="s1">&#39;bottom&#39;</span><span class="p">,</span> <span class="s1">&#39;left&#39;</span><span class="p">,</span> <span class="s1">&#39;right&#39;</span><span class="p">]:</span>
+                <span class="n">plot</span><span class="o">.</span><span class="n">spines</span><span class="p">[</span><span class="n">axis</span><span class="p">]</span><span class="o">.</span><span class="n">set_linewidth</span><span class="p">(</span><span class="n">width</span><span class="p">)</span>
+
+        <span class="c1"># calculate standard errors (se) and 95% confidence intervals (ci) from jacobian</span>
+        <span class="n">J</span> <span class="o">=</span> <span class="n">res_lsq</span><span class="o">.</span><span class="n">jac</span>
+        <span class="n">res</span> <span class="o">=</span> <span class="n">res_lsq</span><span class="o">.</span><span class="n">fun</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">res</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">p</span> <span class="o">=</span> <span class="n">J</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">v</span> <span class="o">=</span> <span class="n">n</span> <span class="o">-</span> <span class="n">p</span>
+        <span class="n">rmse</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">norm</span><span class="p">(</span><span class="n">res</span><span class="p">,</span> <span class="nb">ord</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">/</span><span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">v</span><span class="p">)</span>
+        <span class="n">cov</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">linalg</span><span class="o">.</span><span class="n">inv</span><span class="p">(</span><span class="n">J</span><span class="o">.</span><span class="n">T</span><span class="nd">@J</span><span class="p">)</span><span class="o">*</span><span class="n">rmse</span><span class="o">**</span><span class="mi">2</span>
+        <span class="n">se</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">diag</span><span class="p">(</span><span class="n">cov</span><span class="p">))</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">res_lsq</span><span class="p">,</span> <span class="s1">&#39;se&#39;</span><span class="p">,</span> <span class="n">se</span><span class="p">)</span>
+
+        <span class="n">a</span> <span class="o">=</span> <span class="mf">0.05</span>
+        <span class="n">delta</span> <span class="o">=</span> <span class="n">se</span><span class="o">*</span><span class="n">scipy</span><span class="o">.</span><span class="n">stats</span><span class="o">.</span><span class="n">t</span><span class="o">.</span><span class="n">ppf</span><span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">a</span><span class="o">/</span><span class="mi">2</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span>
+        <span class="n">ci</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">res_lsq</span><span class="o">.</span><span class="n">x</span><span class="o">-</span><span class="n">delta</span><span class="p">,</span> <span class="n">res_lsq</span><span class="o">.</span><span class="n">x</span><span class="o">+</span><span class="n">delta</span><span class="p">])</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">res_lsq</span><span class="p">,</span> <span class="s1">&#39;ci&#39;</span><span class="p">,</span> <span class="n">ci</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">res_lsq</span><span class="p">,</span> <span class="n">C_fit</span><span class="p">,</span> <span class="n">E_fit</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Leland B. Gee.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
