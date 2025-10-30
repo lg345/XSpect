@@ -365,6 +365,8 @@ class XASVisualization(SpectroscopyVisualization):
         difference_spectrum=laser_on_spectrum-laser_off_spectrum
         self.difference_spectrum=difference_spectrum
         setattr(xas_analysis,'difference_spectrum',difference_spectrum)
+        setattr(xas_analysis,'laser_on_spectrum',laser_on_spectrum)
+        setattr(xas_analysis,'laser_off_spectrum',laser_off_spectrum)
 #         vmin, vmax = np.nanpercentile(difference_spectrum, [0,99])
         plt.figure(dpi=100)
 #         plt.imshow(difference_spectrum.T, cmap='RdBu', vmin=self.vmin, vmax=self.vmax, origin='lower',aspect='auto',extent=[xas_analysis.mintime,xas_analysis.maxtime,xas_analysis.minccm,xas_analysis.maxccm])
