@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import rotate
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit, minimize
-import multiprocessing
+from multiprocessing import Pool, TimeoutError
 import os
 from functools import partial
 import time
@@ -19,6 +19,7 @@ from tqdm import tqdm
 import warnings
 import psutil
 from collections import defaultdict
+import pickle
 
 
 class BatchAnalysis:
@@ -33,6 +34,33 @@ class BatchAnalysis:
         self.run_shots = {}
         self.run_shot_ranges = {}
         self.analyzed_runs = []
+
+        self.use_droplets = False
+        self.xes_line='kbeta'
+        self.crystal_detector_distance=50.6
+        self.crystal_d_space=0.895
+        self.crystal_radius=250
+        self.adu_cutoff=3.0
+        self.rois=[[0,None]]
+        self.mintime=-2.0
+        self.maxtime=10.0
+        self.numpoints=240
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+        self.key_epix=['epix_2/ROI_0_area']
+        self.friendly_name_epix=['epix']
+        self.angle=0.0
+        self.end_index=None
+        self.start_index=0
+        self.transpose=False
+        self.lxt_key='lxt_ttc'
+        self.import_roi=None
+        self.combine_rois=True
+        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
+        self.patch_mode='average'
+        self.arbitrary_filter=False
+        self.hitfind=False
+        
     def aggregate_statistics(self):
         aggregated_stats = defaultdict(lambda: defaultdict(int))
         
@@ -101,12 +129,45 @@ class BatchAnalysis:
         self.friendly_names = names
 
     def primary_analysis_loop(self, experiment, verbose=False):
+        analysis = XESAnalysis()
         self.update_status(f"Starting primary analysis loop with experiment={experiment}, verbose={verbose}.")
         analyzed_runs = []
         for run in self.runs:
             analyzed_runs.append(self.primary_analysis(experiment, run, verbose))
         self.analyzed_runs = analyzed_runs
         self.update_status("Primary analysis loop completed.")
+
+        for roi in self.roi_list:
+            #print(roi)
+            label1 = roi + '_xray_not_laser_reduced_time_binned'
+            xes = getattr(self.analyzed_runs[0], label1)
+            label2 = roi + '_simultaneous_laser_reduced_time_binned'
+            xes_laser = getattr(self.analyzed_runs[0], label2)
+
+            label3 = roi + '_xray_not_laser_reduced_std'
+            label4 = roi + '_simultaneous_laser_reduced_std'
+
+            summed_laser_off = np.zeros_like(xes)
+            summed_laser_on = np.zeros_like(xes)
+            summed_laser_off_var = np.zeros_like(xes)
+            summed_laser_on_var = np.zeros_like(xes)
+
+            for run in self.analyzed_runs:
+                summed_laser_on += getattr(run, label1)
+                summed_laser_off += getattr(run, label2)
+                summed_laser_off_var += getattr(run, label3)**2
+                summed_laser_on_var += getattr(run, label4)**2
+
+            setattr(self, roi + '_summed_laser_off', summed_laser_off)
+            setattr(self, roi + '_summed_laser_on', summed_laser_on)
+            setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
+            setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
+
+            analysis.normalize_xes(self, roi + '_summed_laser_off', pixel_range = [0,None])
+            analysis.normalize_xes(self, roi + '_summed_laser_on', pixel_range = [0,None])
+
+            setattr(self, roi + '_summed_normalized_difference', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
+            setattr(self, roi + '_summed_normalized_difference_std', np.sqrt(getattr(self, roi + '_summed_laser_on_std')**2 + getattr(self, roi + '_summed_laser_off_std')**2))
 
     def primary_analysis_parallel_loop(self, cores, experiment, verbose=False):
         self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
@@ -168,12 +229,14 @@ class BatchAnalysis:
 
 
 
-    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None):
+    def primary_analysis_parallel_range(self, cores, experiment, increment, start_index=None, end_index=None, verbose=False, method=None, tasktimeout=30):
+        analysis = XESAnalysis()
         self.update_status("Starting parallel analysis with shot ranges.")
         self.parse_run_shots(experiment, verbose)
         self.break_into_shot_ranges(increment)
 
-        analyzed_runs = []
+        #analyzed_runs = []
+        self.analyzed_runs = []
         total_runs = len(self.run_shot_ranges)
 
         # Start timing the overall process
@@ -185,37 +248,42 @@ class BatchAnalysis:
 
         errors = []
         total_tasks = 0
+        
+        self.update_status(f"Starting multiprocessing with Pool using {cores} cores.")
 
         with Pool(processes=cores) as pool, tqdm(total=total_runs, desc="Processing", unit="Shot_Batch") as pbar:
             run_shot_ranges = self.run_shot_ranges
-
-            def callback(result):
-                nonlocal pbar
-                if isinstance(result, dict) and "error" in result:
-                    self.update_status(f"Error in processing run {result['run']}: {result['error']}")
-                    errors.append(result['error'])
-                else:
-                    analyzed_runs.append(result)
-                pbar.update(1)
-
-            def error_callback(e):
-                self.update_status(f"Parallel processing error: {str(e)}")
-                errors.append(str(e))
-
+            results = []
+        
+            # Submit all tasks to the pool
             for run_shot in run_shot_ranges:
                 run, shot_ranges = run_shot
-                pool.apply_async(self.primary_analysis_range, 
-                                 (experiment, run, shot_ranges, verbose, method), 
-                                 callback=callback, 
-                                 error_callback=error_callback)
-
+                result = pool.apply_async(self.primary_analysis_range, (experiment, run, shot_ranges, verbose, method))
+                results.append((run, shot_ranges, result))  # Store the run and result as tuple
+        
+            # Use loop to independently monitor tasks status
+            # Include error handling for tasks that time out
+            for run, shot_ranges, result in results:
+                try:
+                    output = result.get(timeout=tasktimeout)  # Limit each task to tasktimeout in seconds. Default is 30.
+                    # Process any errors as needed
+                    if isinstance(output, dict) and 'error' in output:
+                        self.update_status(f"Error in processing run {run} and shots {shot_ranges}: {output['error']}")
+                        errors.append(output['error'])
+                    else:
+                        self.analyzed_runs.append(output)
+                    pbar.update(1)
+                except TimeoutError:
+                    self.update_status(f"Task for run {run} shot_ranges {shot_ranges} timed out")
+                    errors.append(f"Timeout for run {run}")
+        
             pool.close()
             pool.join()
 
-        self.analyzed_runs = analyzed_runs
-        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
-        self.analyzed_runs = analyzed_runs
         self.update_status("Parallel analysis with shot ranges completed.")
+
+        self.update_status("Sorting analyzed_runs.")
+        self.analyzed_runs = [analyzed_run for analyzed_run in sorted(self.analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
 
         # End timing the parallel section
         parallel_end_time = time.time()
@@ -239,7 +307,7 @@ class BatchAnalysis:
         runs_per_core = total_runs / cores if cores > 0 else 0
 
         # Update status with statistics
-        self.update_status(f"Parallel analysis completed.")
+        self.update_status(f"---Parallel-Analysis-Stats---")
         self.update_status(f"Total time: {total_time:.2f} seconds.")
         self.update_status(f"Parallel time (processing): {parallel_time:.2f} seconds.")
         self.update_status(f"Time per batch (on average): {time_per_run:.2f} seconds.")
@@ -248,14 +316,20 @@ class BatchAnalysis:
         self.update_status(f"Read bytes: {read_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Write bytes: {write_bytes / (1024 ** 2):.2f} MB.")
         self.update_status(f"Memory used: {memory_used / (1024 ** 2):.2f} MB.")
-
         if errors:
-            self.update_status(f"Errors encountered: {len(errors)}")
+            self.update_status(f"Errors encountered during parallel processing: {len(errors)}")
+        self.update_status(f"------------------------------") 
 
+        self.update_status(f"Combining analyzed_runs for each ROI.")
 
+        analysis.combine_runs(self)
 
+        self.update_status(f"Analysis completed!")
 
-
+    def saveobject(self, filename):
+        filename =  str(filename) + '_' + datetime.now().strftime("%Y-%m-%d_%H%M%S") + '.pkl'
+        with open(filename, 'wb') as file:
+            pickle.dump(self, file, -1)
 
 def analyze_single_run(args):
     obj,experiment, run, shot_ranges, verbose = args
@@ -266,30 +340,7 @@ def analyze_single_run(args):
 class XESBatchAnalysis(BatchAnalysis):
     def __init__(self):
         super().__init__()
-        self.xes_line='kbeta'
-        self.pixels_to_patch=[351,352,529,530,531]
-        self.crystal_detector_distance=50.6
-        self.crystal_d_space=0.895
-        self.crystal_radius=250
-        self.adu_cutoff=3.0
-        self.rois=[[0,None]]
-        self.mintime=-2.0
-        self.maxtime=10.0
-        self.numpoints=240
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        self.filters=[]
-        self.key_epix=['epix_2/ROI_0_area']
-        self.friendly_name_epix=['epix']
-        self.angle=0.0
-        self.end_index=None
-        self.start_index=0
-        self.transpose=False
-        self.lxt_key='lxt_ttc'
-        self.import_roi=None
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1_summed','epix_summed']
-        self.patch_mode='average'
-        self.arbitrary_filter=False
-        self.hitfind=False
+
  
     
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
@@ -377,48 +428,102 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
         f.get_run_shot_properties()
         analysis=XESAnalysis()
+        for fil in self.filters:
+            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         if self.arbitrary_filter:
             f.set_arbitrary_filter()
             analysis.union_shots(f,'epix',['xray','arbitrary_filter'],new_key=False)
         else:
-            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)
-
-
-
-        
+            analysis.union_shots(f,'epix',['xray','xray'],new_key=False)     
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
 
-
-        for fil in self.filters:
-            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])   
+  
         if self.hitfind:
             from XSpect.XSpect_Processor import HitFinding
             f.update_status(f'Starting hit finding')
-            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1)
             f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
             f.epix=f.epix[hits]
             f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
             f.run_shots['XES_Hits']=len(hits)
             f.sum_images=sum_images
         analysis.reduce_detector_shots(f,'epix',purge=False,new_key=False)
-        
-
         if self.transpose:
             f.epix=np.transpose(f.epix)
-        analysis.pixels_to_patch=self.pixels_to_patch     
-        analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch     
+            analysis.patch_pixels(f,'epix',axis=0,mode=self.patch_mode)
         if self.angle!=0:
             #f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
             f.epix=rotate(f.epix, angle=self.angle, axes=[0,1])
         analysis.reduce_detector_spatial(f,'epix', rois=self.rois,combine=True,purge=False)
-
-        #analysis.reduce_detector_shots(f,'epix_ROI_1')
-        self.keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots']
+        self.keys_to_save.extend(['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_ROI_1','sum_images','epix','all_epix','run_shots'])
 
         f.purge_all_keys(self.keys_to_save)
         #analysis.make_energy_axis(f,f.epix.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
         return f
-  
+    
+    def primary_analysis_static_laser(self, run, experiment, verbose=False, start_index=None, end_index=None):
+        if end_index is None:
+            end_index = self.end_index
+        if start_index is None:
+            try:
+                start_index = self.start_index
+            except AttributeError:
+                start_index = 0
+    
+        f = spectroscopy_run(experiment, run, verbose=verbose, start_index=start_index, end_index=end_index)
+        f.load_run_keys(self.keys, self.friendly_names)
+        f.load_run_key_delayed(self.key_epix, self.friendly_name_epix, rois=self.import_roi)
+        f.get_run_shot_properties()
+    
+        analysis = XESAnalysis()
+        for fil in self.filters:
+            analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+        ##arbitrary filters can't work because it calls union shots. which lowers the size of the epix shot array. then mismatches xray laser array
+        #if self.arbitrary_filter:
+        #    f.set_arbitrary_filter()
+        #    analysis.union_shots(f, 'epix', ['xray', 'arbitrary_filter'], new_key=False)
+        #else:
+            #analysis.union_shots(f, 'epix', ['xray', 'xray'], new_key=False)
+        analysis.filter_detector_adu(f, 'epix', adu_threshold=self.adu_cutoff)
+        
+        # Laser specific logic
+        analysis.union_shots(f, 'epix', ['simultaneous', 'laser'])
+        analysis.separate_shots(f, 'epix', ['xray', 'laser'])
+    
+        self.keys_to_save.extend(['epix_simultaneous_laser_ROI_1', 'epix_xray_not_laser_ROI_1'])
+    
+
+        # Ensure 'epix', 'epix_simultaneous_laser', and 'epix_xray_not_laser' go through the same steps
+        for key in ['epix', 'epix_simultaneous_laser', 'epix_xray_not_laser']:
+            if self.hitfind:
+                from XSpect.XSpect_Processor import HitFinding
+                f.update_status(f'Starting hit finding')
+                hits, mean_sum, std_sum, threshold, sum_images = HitFinding.basic_detect(getattr(f, key), cutoff_multiplier=1, absolute_threshold=100)
+                f.update_status(f'Hit finding on {key}. Hits found: {str(len(hits))}, median: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+                setattr(f, key, getattr(f, key)[hits])
+                f.update_status(f'Applying Hits to {key} detector. New size {str(np.shape(getattr(f, key))[0])}')
+                f.run_shots[f'XES_Hits_{key}'] = len(hits)
+                f.sum_images = sum_images
+
+            analysis.reduce_detector_shots(f, key, purge=False, new_key=False)
+    
+            if self.transpose:
+                setattr(f, key, np.transpose(getattr(f, key)))
+    
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.pixels_to_patch = self.pixels_to_patch
+                analysis.patch_pixels(f, key, axis=0, mode=self.patch_mode)
+    
+            if self.angle != 0:
+                setattr(f, key, rotate(getattr(f, key), angle=self.angle, axes=[0, 1]))
+            analysis.reduce_detector_spatial(f, key, rois=self.rois, combine=True, purge=False)
+    
+        self.keys_to_save.extend(['start_index', 'end_index', 'run_file', 'run_number', 'verbose', 'status', 'status_datetime', 'epix_ROI_1', 'sum_images', 'epix', 'all_epix', 'run_shots'])
+        f.purge_all_keys(self.keys_to_save)
+        return f
+        
     def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
         if end_index==None:
             end_index=self.end_index
@@ -427,37 +532,165 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                 start_index=self.start_index
             except AttributeError:
                 start_index=0
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        # self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         self.end_index=end_index
         self.start_index=start_index
+        
         f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
-        f.load_run_keys(self.keys,self.friendly_names)
-        f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi)
-        f.get_run_shot_properties()
-
         analysis=XESAnalysis()
-        analysis.pixels_to_patch=self.pixels_to_patch
-        analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
-        #analysis.patch_pixels(f,'epix',axis=1)
-        if self.angle!=0:
-            f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
+
+        analysis.time_binning(f, self.time_bins)
+        self.keys_to_save.extend(['time_bins'])
+        self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+        self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+
         for fil in self.filters:
-            analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])                                                                  
-        analysis.union_shots(f,'epix',['simultaneous','laser'])
-        analysis.separate_shots(f,'epix',['xray','laser'])
-        self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        analysis.time_binning(f,self.bins,lxt_key=self.lxt_key)
+            analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+    
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
-        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
-        analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
-        analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
-        keys_to_save=['start_index','end_index','run_file','run_number','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
-        f.purge_all_keys(keys_to_save)
-        analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+
+        if self.use_droplets:
+            analysis.droplet_reconstruction(f, self.key_epix, self.friendly_name_epix, rois = self.rois, shot_range = [self.start_index, self.end_index])
+        else:
+            f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi,combine = self.combine_rois)
+            analysis.apply_roi(f, self.friendly_name_epix[0], rois = self.rois, combine = self.combine_rois)
+
+        self.roi_list = [attr for attr in dir(f) if 'epix_ROI' in attr]
+        self.keys_to_save.extend(['roi_list'])
+
+        if self.hitfind:
+            from XSpect.XSpect_Processor import HitFinding
+            f.update_status(f'Starting hit finding')
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median intensity: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+            f.epix=f.epix[hits]
+            f.xray=f.xray[hits]
+            f.laser=f.laser[hits]
+            f.simultaneous=np.logical_and(f.xray,f.laser)
+            f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
+            for name in self.friendly_names:
+                setattr(f, name,getattr(f,name)[hits])
+            f.run_shots['XES_Hits']=len(hits)
+            f.sum_images=sum_images
+
+
+        for ii, roi in enumerate(self.roi_list):
+            if not self.use_droplets:
+                analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
+
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.patch_pixels(f,roi,axis=1)
+            
+            if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
+                if self.angle[ii] !=0:
+                    start = time.time()
+                    setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
+                    end = time.time()
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[ii], end - start))
+            elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
+                f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[0], end - start))
+            elif self.angle != 0 and not isinstance(self.angle, list):
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+
+            analysis.union_shots(f, roi, ['simultaneous', 'laser'])
+            analysis.separate_shots(f, roi, ['xray', 'laser'])
+        
+            label1 = roi + '_simultaneous_laser'
+            setattr(f, label1 + '_reduced', np.flip(np.nansum(getattr(f, label1), axis = -1), axis = 1))
+            label2 = roi + '_xray_not_laser'
+            setattr(f, label2 + '_reduced', np.flip(np.nansum(getattr(f, label2), axis = -1), axis = 1))
+        
+            label3 = label1 + '_reduced'
+            analysis.reduce_detector_temporal(f, label3, 'timing_bin_indices_simultaneous_laser', average = False)
+            self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])
+            
+            
+            label4 = label2 + '_reduced'
+            analysis.reduce_detector_temporal(f, label4, 'timing_bin_indices_xray_not_laser', average = False)
+            self.keys_to_save.extend([label4 + '_time_binned', label4 + '_bincount', label4 + '_std'])
+
+            pixels = getattr(f, label3 + '_time_binned').shape[1]
+
+            if hasattr(self, 'crystal_dict'):
+                if isinstance(self.crystal_dict, dict) and self.crystal_dict != {}:
+                    vH = vonHamos()
+                    crystal = self.crystal_dict['crystal']
+                    h = self.crystal_dict['h']
+                    k = self.crystal_dict['k']
+                    l = self.crystal_dict['l']
+                    d_space = vH.dspacing(crystal, h, k, l)
+                    
+                    radius = self.crystal_dict['radius']
+                    detector_distance = self.crystal_dict['detector_distance']
+                elif isinstance(self.crystal_dict, list) and self.crystal_dict != []:
+                    vH = vonHamos()
+                    if len(self.crystal_dict) == len(self.roi_list):
+                        crystal = self.crystal_dict[ii]['crystal']
+                        h = self.crystal_dict[ii]['h']
+                        k = self.crystal_dict[ii]['k']
+                        l = self.crystal_dict[ii]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[ii]['radius']
+                        detector_distance = self.crystal_dict[ii]['detector_distance']
+                    else:
+                        crystal = self.crystal_dict[0]['crystal']
+                        h = self.crystal_dict[0]['h']
+                        k = self.crystal_dict[0]['k']
+                        l = self.crystal_dict[0]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[0]['radius']
+                        detector_distance = self.crystal_dict[0]['detector_distance']
+                else:
+                    d_space = self.crystal_d_space
+                    radius = self.crystal_radius
+                    detector_distance = self.crystal_detector_distance
+                    
+                analysis.make_energy_axis(f, pixels, A=detector_distance, R=radius, d=d_space, name = roi)
+
+            self.keys_to_save.extend([roi + '_energy'])
+            
+
+        f.purge_all_keys(self.keys_to_save)
+
         return f
+
+        #analysis.patch_pixels(f,'epix',axis=1)
+        # if self.angle!=0:
+        #     f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
+        # for fil in self.filters:
+        #     analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])    
+        # analysis.union_shots(f,'epix',['simultaneous','laser'])
+        # analysis.separate_shots(f,'epix',['xray','laser'])
+        # # self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints) # why is this defined again under a different name?
+        # analysis.time_binning(f,self.bins,lxt_key=self.lxt_key)
+        # analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        # analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+        # analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
+        # analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+        # analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
+        # analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
+
+        ###### THIS IS WHERE I LEFT OFF RR 8/21/25
+        # analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+        # keys_to_save=['start_index','end_index','run_file','run_number','run_shots','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
+        # analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
+        # return f
     def primary_analysis_range(self, experiment, run, shot_ranges, verbose=False, method=None):
         try:
             if method is None:
@@ -484,7 +717,8 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         f.get_run_shot_properties()
 
         analysis=XESAnalysis()
-        analysis.pixels_to_patch=self.pixels_to_patch
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
         analysis.filter_detector_adu(f,'epix',adu_threshold=self.adu_cutoff)
         f.epix=np.nansum(np.nansum(f.epix,axis=1),axis=1)
         for fil in self.filters:
@@ -508,6 +742,32 @@ class XASBatchAnalysis(BatchAnalysis):
         self.numpoints_ccm=90
         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         self.filters=[]
+    def primary_analysis_loop(self, experiment, verbose=False):
+        self.update_status(f"Starting primary analysis loop with experiment={experiment}, verbose={verbose}.")
+        analyzed_runs = []
+        for run in self.runs:
+            analyzed_runs.append(self.primary_analysis(experiment, run, verbose))
+        self.analyzed_runs = analyzed_runs
+        self.update_status("Primary analysis loop completed.")
+    def primary_analysis_parallel_loop(self, cores, experiment, verbose=False):
+        self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
+        pool = Pool(processes=cores)
+        analyzed_runs = []
+
+        def callback(result):
+            analyzed_runs.append(result)
+
+        with tqdm(total=len(self.runs), desc="Processing Runs", unit="Run") as pbar:
+            for analyzed_run in pool.imap(partial(self.primary_analysis, experiment=experiment, verbose=verbose), self.runs):
+                pbar.update(1)
+                analyzed_runs.append(analyzed_run)
+
+        pool.close()
+        pool.join()
+
+        analyzed_runs = [analyzed_run for analyzed_run in sorted(analyzed_runs, key=lambda x: (x.run_number, x.end_index))]
+        self.analyzed_runs = analyzed_runs
+        self.update_status("Parallel analysis loop completed.")
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
@@ -515,7 +775,7 @@ class XASBatchAnalysis(BatchAnalysis):
         f.load_run_keys(self.keys,self.friendly_names)
         if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
-            f.ipm=f.scattering[:-1]
+            f.ipm=f.scattering[:]
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')

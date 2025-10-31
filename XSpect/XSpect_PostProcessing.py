@@ -207,15 +207,18 @@ class post_analysis(analysis_functions):
     def __init__(self):
         pass
 
-    def svdplot(self, xval, yval, data, ncomp):
+    def svdplot(self, xval, yval, data, ncomp, figdim=(8,4), xlims = None, results = False):
         U, S, V = np.linalg.svd(data)
 
-        fig, ax = plt.subplots(ncols = 3, nrows = 1, figsize = (8,4))
+        if results == True:
+            return U, S, V
+
+        fig, ax = plt.subplots(ncols = 3, nrows = 1, figsize = figdim)
 
         offsetU = 0
-        offsetbaseU = np.max(np.abs(U[:,0:ncomp]))
+        offsetbaseU = np.max(np.abs(U[:,0:ncomp])) * 1.5
         offsetV = 0
-        offsetbaseV = np.max(np.abs(V[0:ncomp,:]))
+        offsetbaseV = np.max(np.abs(V[0:ncomp,:])) * 1.5
         offsetlistU = []
         offsetlistV = []
         SVDindex = []
@@ -239,7 +242,10 @@ class post_analysis(analysis_functions):
         ax[0].set_yticks(offsetlistU)
         ax[0].set_yticklabels(SVDindex)
         ax[0].set_title('Left Singular Vectors')
-        ax[0].set_xlim([min(xval), max(xval)])
+        if xlims:
+            ax[0].set_xlim(xlims)
+        else:
+            ax[0].set_xlim([min(xval), max(xval)])
         ax[1].set_yscale('log')
         ax[1].set_xlim([min(SVDindex)-1, max(SVDindex)+1])
         ax[1].set_xticks(SVDindex)
@@ -248,7 +254,7 @@ class post_analysis(analysis_functions):
         ax[2].set_yticks(offsetlistV)
         ax[2].set_yticklabels(SVDindex)
         ax[2].set_title('Right Singular Vectors')
-        ax[2].set_xlim([min(yval), max(yval)])
+        #ax[2].set_xlim([min(yval), max(yval)])
         
     def svdreconstruct(self, data, ncomp):
         U, S, V = np.linalg.svd(data)
