@@ -779,6 +779,8 @@ class XASBatchAnalysis(BatchAnalysis):
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
+            
+            elist = np.round(ccm_val,1)
             elist = np.unique(ccm_val)
         except KeyError as e:
             self.update_status('Key does not exist: %s' % e.args[0])
