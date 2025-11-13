@@ -27,6 +27,7 @@ class XSpectGUI:
     
     def __init__(self):
         # Initialize default key aliases
+        print('test')
         self.default_key_aliases = pd.DataFrame({
             'Key': ['epics/ccm_E', 'epicsUser/ccm_E_setpoint', 'tt/ttCorr', 
                     'epics/lxt_ttc', 'enc/lasDelay', 'ipm4/sum', 'ipm4/sum', 
