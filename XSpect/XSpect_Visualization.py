@@ -315,10 +315,19 @@ class XASVisualization(SpectroscopyVisualization):
         xas_analysis.summed_norm_off = summed_norm_off
 
 
-    def plot_2d_difference_spectrum(self,xas_analysis,vmin=None,vmax=None):
+    def plot_2d_difference_spectrum(self,xas_analysis,vmin=None,vmax=None,alldarks=False):
         laser_on_spectrum=xas_analysis.summed_laser_on/xas_analysis.summed_norm_on
         laser_off_spectrum=np.divide(np.nansum(xas_analysis.summed_laser_off,axis=0),np.nansum(xas_analysis.summed_norm_off,axis=0))
-        difference_spectrum=laser_on_spectrum-laser_off_spectrum
+        self.laser_on=laser_on_spectrum
+        self.laser_off=laser_off_spectrum
+        if alldarks==False:
+            difference_spectrum=laser_on_spectrum-laser_off_spectrum
+        elif alldarks==True:
+            time_axis=0
+            avg_dark = np.nanmean(laser_off_spectrum, axis=time_axis)
+            subtract=np.tile(avg_dark,np.shape(laser_on_spectrum)[1])
+            difference_spectrum = laser_on_spectrum-subtract
+        
         self.difference_spectrum=difference_spectrum
         setattr(xas_analysis,'difference_spectrum',difference_spectrum)
 #         vmin, vmax = np.nanpercentile(difference_spectrum, [0,99])
@@ -329,7 +338,7 @@ class XASVisualization(SpectroscopyVisualization):
             vmin = -vmax
         contlevels = np.linspace(vmin*0.5, vmax*0.5, 20)
         
-        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu',extend="max")
+        plt.contourf(xas_analysis.ccm_bins, xas_analysis.time_bins, difference_spectrum, contlevels, cmap = 'RdBu',extend='max')
         plt.colorbar()
         plt.xlabel('Energy (keV)')
         plt.ylabel('Time (ps)')
