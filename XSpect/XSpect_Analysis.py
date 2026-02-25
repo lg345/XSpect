@@ -653,7 +653,7 @@ class SpectroscopyAnalysis:
         if not all(x > 0.001 for x in [a, b, c]):
             run.update_status('------Timing data values are either very small or zero. Confirm the units and keys are correct-----\n-----Mean abs value of: lxt_key: %f, fast_delay: %f, tt_correction: %f -----' % (a, b, c))
         # Generate delays, time_bins and binning
-        delays = np.array(getattr(run,lxt_key)).flatten() + np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
+        delays = np.array(getattr(run,lxt_key)*(1e12)).flatten() + np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
 
         run.delays=delays
         run.time_bins=bins
@@ -1245,7 +1245,7 @@ class XASAnalysis(SpectroscopyAnalysis):
         detector = getattr(run, detector_key)
         time_bins=run.time_bins
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros(np.shape(time_bins)[0]+1)
+        reduced_array = np.zeros(np.shape(time_bins)[0])
         print(reduced_array.shape)
         np.add.at(reduced_array, timing_indices, detector)
         setattr(run, detector_key+'_time_binned', reduced_array)

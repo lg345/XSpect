@@ -137,37 +137,37 @@ class BatchAnalysis:
         self.analyzed_runs = analyzed_runs
         self.update_status("Primary analysis loop completed.")
 
-        for roi in self.roi_list:
-            #print(roi)
-            label1 = roi + '_xray_not_laser_reduced_time_binned'
-            xes = getattr(self.analyzed_runs[0], label1)
-            label2 = roi + '_simultaneous_laser_reduced_time_binned'
-            xes_laser = getattr(self.analyzed_runs[0], label2)
+        # for roi in self.roi_list:
+        #     #print(roi)
+        #     label1 = roi + '_xray_not_laser_reduced_time_binned'
+        #     xes = getattr(self.analyzed_runs[0], label1)
+        #     label2 = roi + '_simultaneous_laser_reduced_time_binned'
+        #     xes_laser = getattr(self.analyzed_runs[0], label2)
 
-            label3 = roi + '_xray_not_laser_reduced_std'
-            label4 = roi + '_simultaneous_laser_reduced_std'
+        #     label3 = roi + '_xray_not_laser_reduced_std'
+        #     label4 = roi + '_simultaneous_laser_reduced_std'
 
-            summed_laser_off = np.zeros_like(xes)
-            summed_laser_on = np.zeros_like(xes)
-            summed_laser_off_var = np.zeros_like(xes)
-            summed_laser_on_var = np.zeros_like(xes)
+        #     summed_laser_off = np.zeros_like(xes)
+        #     summed_laser_on = np.zeros_like(xes)
+        #     summed_laser_off_var = np.zeros_like(xes)
+        #     summed_laser_on_var = np.zeros_like(xes)
 
-            for run in self.analyzed_runs:
-                summed_laser_on += getattr(run, label1)
-                summed_laser_off += getattr(run, label2)
-                summed_laser_off_var += getattr(run, label3)**2
-                summed_laser_on_var += getattr(run, label4)**2
+        #     for run in self.analyzed_runs:
+        #         summed_laser_on += getattr(run, label1)
+        #         summed_laser_off += getattr(run, label2)
+        #         summed_laser_off_var += getattr(run, label3)**2
+        #         summed_laser_on_var += getattr(run, label4)**2
 
-            setattr(self, roi + '_summed_laser_off', summed_laser_off)
-            setattr(self, roi + '_summed_laser_on', summed_laser_on)
-            setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
-            setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
+        #     setattr(self, roi + '_summed_laser_off', summed_laser_off)
+        #     setattr(self, roi + '_summed_laser_on', summed_laser_on)
+        #     setattr(self, roi + '_summed_laser_off_std', np.sqrt(summed_laser_off_var))
+        #     setattr(self, roi + '_summed_laser_on_std', np.sqrt(summed_laser_on_var))
 
-            analysis.normalize_xes(self, roi + '_summed_laser_off', pixel_range = [0,None])
-            analysis.normalize_xes(self, roi + '_summed_laser_on', pixel_range = [0,None])
+        #     analysis.normalize_xes(self, roi + '_summed_laser_off', pixel_range = [0,None])
+        #     analysis.normalize_xes(self, roi + '_summed_laser_on', pixel_range = [0,None])
 
-            setattr(self, roi + '_summed_normalized_difference', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
-            setattr(self, roi + '_summed_normalized_difference_std', np.sqrt(getattr(self, roi + '_summed_laser_on_std')**2 + getattr(self, roi + '_summed_laser_off_std')**2))
+        #     setattr(self, roi + '_summed_normalized_difference', getattr(self, roi + '_summed_laser_on_normalized') - getattr(self, roi + '_summed_laser_off_normalized'))
+        #     setattr(self, roi + '_summed_normalized_difference_std', np.sqrt(getattr(self, roi + '_summed_laser_on_std')**2 + getattr(self, roi + '_summed_laser_off_std')**2))
 
     def primary_analysis_parallel_loop(self, cores, experiment, verbose=False):
         self.update_status(f"Starting parallel analysis loop with cores={cores}, experiment={experiment}, verbose={verbose}.")
@@ -817,6 +817,10 @@ class XASBatchAnalysis_1D_ccm(BatchAnalysis):
         f.get_run_shot_properties()
         
         f.load_run_keys(self.keys,self.friendly_names)
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
+            
         analysis=XASAnalysis()
         try:
             ccm_val = getattr(f, 'ccm_E_setpoint')
@@ -862,6 +866,9 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
         f.get_run_shot_properties()
         
         f.load_run_keys(self.keys,self.friendly_names)
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
         analysis=XASAnalysis()
 #         try:
 #             ccm_val = getattr(f, 'ccm_E_setpoint')
@@ -870,8 +877,10 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
 #             self.update_status('Key does not exist: %s' % e.args[0])
 #             elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
 #         analysis.make_ccm_axis(f,elist)
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        # self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         analysis.time_binning(f,self.time_bins)
+        self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+        self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
         analysis.union_shots(f,'epix',['simultaneous','laser'])
@@ -899,6 +908,9 @@ class ScanAnalysis_1D(BatchAnalysis):
         pass
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run=run,verbose=True)
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
         analysis=XASAnalysis()
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
