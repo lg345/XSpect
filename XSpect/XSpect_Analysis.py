@@ -310,19 +310,22 @@ class SpectroscopyAnalysis:
             The key for which unique values are to be binned.
         """
         vals = getattr(run,key)
-        bins = np.unique(vals)
-        addon = (bins[-1] - bins[-2])/2 # add on energy 
-        bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
-        bins_center = np.empty_like(bins2)
-        for ii in np.arange(bins.shape[0]):
-            if ii == 0:
-                bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
-            else:
-                bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
-        bins_center[-1] = bins2[-1]
+        run.scanvar_bins = np.unique(vals)
+        bins_centered, run.scanvar_indices = self.center_binning(vals, run.scanvar_bins)
+        run.scanvar_indices = run.scanvar_indices - 1
 
-        setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
-        setattr(run,'scanvar_bins',bins_center)
+        # addon = (bins[-1] - bins[-2])/2 # add on energy 
+        # bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
+        # bins_center = np.empty_like(bins2)
+        # for ii in np.arange(bins.shape[0]):
+        #     if ii == 0:
+        #         bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
+        #     else:
+        #         bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
+        # bins_center[-1] = bins2[-1]
+
+        # setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
+        # setattr(run,'scanvar_bins',bins_center)
     
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         """
@@ -781,13 +784,7 @@ class SpectroscopyAnalysis:
             np.add.at(reduced_array, indices, detector)
 
         for i in np.arange(expected_length):
-            # datpoints[i] = detector[indices == i][:]
-            # datmeans[i] = np.nanmean(detector[indices ==  i][:], axis = 0)\
-            # print(detector[indices == i][:].shape)
             reduced_std[i] = np.nanstd(detector[indices == i][:], axis = 0)
-            # if counts[i] == 0:
-            #     print(i, run.time_bins[i])
-            # reduced_std[i] = np.nansum(detector[indices == i][:], axis = 0)
             
         setattr(run, detector_key+'_time_binned', reduced_array)
         setattr(run, detector_key+'_bincount', counts)
@@ -1190,11 +1187,25 @@ class XASAnalysis(SpectroscopyAnalysis):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.shape(run.time_bins)[0]+1, np.shape(run.ccm_bins)[0]))
-        unique_indices =np.column_stack((timing_indices, ccm_indices))
+        reduced_array = np.zeros((np.shape(run.time_bins)[0], np.shape(run.ccm_bins)[0]))
+        reduced_std = np.zeros_like(reduced_array)
+        
+        unique_indices = np.column_stack((timing_indices, ccm_indices))
+
+        counts = np.zeros_like(reduced_array)
+        for ii in np.arange(reduced_array.shape[0]):
+            for jj in np.arange(reduced_array.shape[1]):
+                mask = (timing_indices == ii) & (ccm_indices == jj)
+                reduced_std[ii,jj] = np.nanstd(detector[mask], axis = 0)
+                counts[ii,jj] = np.nansum(mask)
+
         np.add.at(reduced_array, (unique_indices[:, 0], unique_indices[:, 1]), detector)
-        reduced_array = reduced_array[:-1,:]
+
+        
         setattr(run, detector_key+'_time_energy_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
+        
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
         
     def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False, not_ccm=False):
@@ -1217,13 +1228,32 @@ class XASAnalysis(SpectroscopyAnalysis):
         """
         detector = getattr(run, detector_key)
         
-        ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
+        indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
         if not_ccm:
-            reduced_array = np.zeros(np.max(ccm_indices)+1 )
+            reduced_array = np.zeros(np.max(indices)+1 )
         else:
             reduced_array = np.zeros(np.shape(run.ccm_bins)[0]) 
-        np.add.at(reduced_array, ccm_indices, detector)
+        reduced_std = np.zeros_like(reduced_array)
+        counts = np.zeros_like(reduced_array)
+        
+        # np.add.at(reduced_array, ccm_indices, detector)
+        if average:
+            np.add.at(reduced_array, indices, detector)
+            reduced_array /= counts[:, None]
+        else:
+            np.add.at(reduced_array, indices, detector)
+            
+        # counts = np.bincount(indices)
+    
+        for i in np.arange(reduced_std.shape[0]):
+            mask = (indices == i)
+            reduced_std[i] = np.nanstd(detector[mask][:], axis = 0)
+            counts[i] = np.nansum(mask)
+
+            
         setattr(run, detector_key+'_energy_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
         
         run.update_status('Detector %s binned in energy into key: %s'%(detector_key,detector_key+'_energy_binned') )
         
@@ -1244,14 +1274,32 @@ class XASAnalysis(SpectroscopyAnalysis):
         """
         detector = getattr(run, detector_key)
         time_bins=run.time_bins
-        timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
+        indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         reduced_array = np.zeros(np.shape(time_bins)[0])
-        print(reduced_array.shape)
-        np.add.at(reduced_array, timing_indices, detector)
+        np.add.at(reduced_array, indices, detector)
+
+        reduced_std = np.zeros_like(reduced_array)
+        counts = np.zeros_like(reduced_array)
+
+        # counts = np.bincount(indices)
+        if average:
+            np.add.at(reduced_array, indices, detector)
+            reduced_array /= counts[:, None]
+        else:
+            np.add.at(reduced_array, indices, detector)
+
+        expected_length = len(run.time_bins)
+        for i in np.arange(expected_length):
+            mask = (indices == i)
+            reduced_std[i] = np.nanstd(detector[indices == i][:], axis = 0)
+            counts[i] = np.nansum(mask)
+
         setattr(run, detector_key+'_time_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
         
-    def ccm_binning(self,run,ccm_bins_key,ccm_key='ccm'):
+    def ccm_binning(self,run,ccm_bins,ccm_key='ccm'):
         """
         Generate CCM bin indices from CCM data and bins.
 
@@ -1264,10 +1312,16 @@ class XASAnalysis(SpectroscopyAnalysis):
         ccm_key : str, optional
             The key corresponding to the CCM data (default is 'ccm').
         """
-        ccm=getattr(run,ccm_key)
-        bins=getattr(run,ccm_bins_key)
-        run.ccm_bin_indices=np.digitize(ccm, bins)
-        run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+        # ccm=getattr(run,ccm_key)
+        # bins=getattr(run,ccm_bins_key)
+        # run.ccm_bin_indices=np.digitize(ccm, bins)
+        run.ccm_bins = ccm_bins
+        ccm = getattr(run, ccm_key)
+        ccm_bins_centered, run.ccm_bin_indices = self.center_binning(ccm, run.ccm_bins)
+        run.ccm_bin_indices = run.ccm_bin_indices - 1
+        
+        # run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+        run.update_status('Generated ccm bins.')
 
 class vonHamos:
     def __init__(self):
