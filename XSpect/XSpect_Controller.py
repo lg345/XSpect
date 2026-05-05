@@ -638,27 +638,6 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
 
         return f
 
-        #analysis.patch_pixels(f,'epix',axis=1)
-        # if self.angle!=0:
-        #     f.epix=rotate(f.epix, angle=self.angle, axes=[1,2])
-        # for fil in self.filters:
-        #     analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold'])    
-        # analysis.union_shots(f,'epix',['simultaneous','laser'])
-        # analysis.separate_shots(f,'epix',['xray','laser'])
-        # # self.bins=np.linspace(self.mintime,self.maxtime,self.numpoints) # why is this defined again under a different name?
-        # analysis.time_binning(f,self.bins,lxt_key=self.lxt_key)
-        # analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
-        # analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
-        # analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
-        # analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
-        # analysis.reduce_detector_spatial(f,'epix_simultaneous_laser_time_binned', rois=self.rois)
-        # analysis.reduce_detector_spatial(f,'epix_xray_not_laser_time_binned', rois=self.rois)
-
-        ###### THIS IS WHERE I LEFT OFF RR 8/21/25
-        # analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
-        # keys_to_save=['start_index','end_index','run_file','run_number','run_shots','verbose','status','status_datetime','epix_xray_not_laser_time_binned_ROI_1','epix_simultaneous_laser_time_binned_ROI_1']
-        # analysis.make_energy_axis(f,f.epix_xray_not_laser_time_binned_ROI_1.shape[1],d=self.crystal_d_space,R=self.crystal_radius,A=self.crystal_detector_distance)
-        # return f
     def primary_analysis_range(self, experiment, run, shot_ranges, verbose=False, method=None):
         try:
             if method is None:
@@ -900,6 +879,7 @@ class ScanAnalysis_1D(BatchAnalysis):
         analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
         analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
         return f
+
 class ScanAnalysis_1D_XES(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -910,10 +890,31 @@ class ScanAnalysis_1D_XES(BatchAnalysis):
         analysis=XESAnalysis()
         f.get_run_shot_properties()
         f.load_run_keys(self.keys,self.friendly_names)
-        #f.ccm_bins=f.ccm
+
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
+            
+        with h5py.File(f.run_file, 'r') as fh:
+            try:
+                scanlist = list(fh['scan'].keys())
+                setattr(f, 'scan', fh['scan/var0'][:])
+                motorname = [item for item in scanlist if 'var0' not in item]
+                motorname = [item for item in motorname if 'varStep' not in item]
+                setattr(f, 'motorname', motorname)
+            except:
+                pass
+
+        if self.use_droplets:
+            analysis.droplet_reconstruction(f, self.key_epix, self.friendly_name_epix, rois = self.rois, shot_range = [self.start_index, self.end_index])
+        else:
+            f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi,combine = self.combine_rois)
+            analysis.apply_roi(f, self.friendly_name_epix[0], rois = self.rois, combine = self.combine_rois)
+
+        self.roi_list = [attr for attr in dir(f) if 'epix_ROI' in attr]
+        self.keys_to_save.extend(['roi_list'])
+
         analysis.bin_uniques(f,'scan')
-        analysis.union_shots(f,'epix',['simultaneous','laser'])
-        analysis.separate_shots(f,'epix',['xray','laser'])
         analysis.union_shots(f,'ipm',['simultaneous','laser'])
         analysis.separate_shots(f,'ipm',['xray','laser'])
         analysis.union_shots(f,'scan',['simultaneous','laser'])
@@ -921,8 +922,49 @@ class ScanAnalysis_1D_XES(BatchAnalysis):
         analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
 
-        analysis.reduce_det_scanvar(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
-        analysis.reduce_det_scanvar(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
+        for ii, roi in enumerate(self.roi_list):
+            if not self.use_droplets:
+                analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
+
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.patch_pixels(f,roi,axis=1)
+            
+            if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
+                if self.angle[ii] !=0:
+                    start = time.time()
+                    setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
+                    end = time.time()
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[ii], end - start))
+            elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
+                f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[0], end - start))
+            elif self.angle != 0 and not isinstance(self.angle, list):
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+
+            analysis.union_shots(f, roi, ['simultaneous', 'laser'])
+            analysis.separate_shots(f, roi, ['xray', 'laser'])
+        
+            label1 = roi + '_simultaneous_laser'
+            analysis.reduce_det_scanvar(f, label1, 'scanvar_indices_simultaneous_laser', 'scanvar_bins')
+            label2 = roi + '_xray_not_laser'
+            analysis.reduce_det_scanvar(f, label2, 'scanvar_indices_xray_not_laser', 'scanvar_bins')
+        
+            label3 = label1 + '_scanvar_reduced'
+            setattr(f, label3 + '_reduced', np.flip(np.nansum(getattr(f, label3), axis = -1), axis = 1))
+            # self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])
+            
+            label4 = label2 + '_scanvar_reduced'
+            setattr(f, label4 + '_reduced', np.flip(np.nansum(getattr(f, label4), axis = -1), axis = 1))
+            # self.keys_to_save.extend([label4 + '_time_binned', label4 + '_bincount', label4 + '_std'])
+        
+        # analysis.reduce_det_scanvar(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser','scanvar_bins')
+        # analysis.reduce_det_scanvar(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser','scanvar_bins')
 
 
         return f

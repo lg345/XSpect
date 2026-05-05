@@ -1053,7 +1053,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         # Initialize reduced_array with the correct shape (number of bins, 699, 50)
         reduced_array = np.zeros((n_bins, detector.shape[1], detector.shape[2]))
 
-        # Iterate over the images and accumulate them into reduced_array based on timing_indices
+        # Iterate over the images and accumulate them into reduced_array based on scanvar_indices
         for i in range(detector.shape[0]):
             np.add.at(reduced_array, (scanvar_indices[i],), detector[i])
 
