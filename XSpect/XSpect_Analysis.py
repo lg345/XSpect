@@ -319,18 +319,107 @@ class SpectroscopyAnalysis:
         bins_centered, run.scanvar_indices = self.center_binning(vals, run.scanvar_bins)
         run.scanvar_indices = run.scanvar_indices - 1
 
-        # addon = (bins[-1] - bins[-2])/2 # add on energy 
-        # bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
-        # bins_center = np.empty_like(bins2)
-        # for ii in np.arange(bins.shape[0]):
-        #     if ii == 0:
-        #         bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
-        #     else:
-        #         bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
-        # bins_center[-1] = bins2[-1]
+    def reduce_detector_1D(self, run, detector_key, axis1_key_bins, axis1_key_indices, average = True):
+        """
+        Reduce detector data over 1 dimension.
 
-        # setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
-        # setattr(run,'scanvar_bins',bins_center)
+        Parameters
+        ----------
+        run : object
+            The spectroscopy run instance.
+        detector_key : str
+            The key corresponding to the detector data.
+        axis1_bins : str
+            The key corresponding to 1st dimension bins (e.g., time_bins)
+        axis1_key_indices : str
+            The key corresponding to the 1st dimension bin indices
+        average : bool, optional
+            Whether to average the reduced data (default is True)
+        """
+        detector = getattr(run, detector_key)
+        axis1_bins = getattr(run, axis1_key_bins)
+        axis1_indices = getattr(run, axis1_key_indices)
+
+        if len(detector.shape) < 2:
+            reduced_array = np.zeros((axis1_bins.shape[0]))
+        elif len(detector.shape) < 3:
+            reduced_array = np.zeros((axis1_bins.shape[0], detector.shape[1]))
+        elif len(detector.shape) == 3:
+            reduced_array = np.zeros((axis1_bins.shape[0], detector.shape[1], detector.shape[2]))
+
+        reduced_std = np.zeros_like(reduced_array)
+
+        counts = np.bincount(axis1_indices)
+        if average:
+            np.add.at(reduced_array, axis1_indices, detector)
+            reduced_array /= counts[:, None]
+        else:
+            np.add.at(reduced_array, axis1_indices, detector)
+
+        for i in np.arange(axis1_bins.shape[0]):
+            reduced_std[i] = np.nanstd(detector[axis1_indices == i][:], axis = 0)
+
+        setattr(run, detector_key+'_'+axis1_key_bins.split('_')[0]+'_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
+
+        run.update_status('Detector %s binned in 1D (%s) into key: %s'%(detector_key, axis1_key_bins.split('_')[0], detector_key+'_'+axis1_key_bins.split('_')[0]+'_binned') )
+
+    def reduce_detector_2D(self, run, detector_key, axis1_key_bins, axis1_key_indices, axis2_key_bins, axis2_key_indices, average=True):
+        """
+        Reduce detector data over 2 dimensions.
+
+        Parameters
+        ----------
+        run : object
+            The spectroscopy run instance.
+        detector_key : str
+            The key corresponding to the detector data.
+        axis1_bins : str
+            The key corresponding to 1st dimension bins (e.g., time_bins)
+        axis1_key_indices : str
+            The key corresponding to the timing bin indices.
+        axis2_bins : str
+            The key corresponding to 2nd dimension bins (e.g., energy_bins)
+        axis2_key_indices : str
+            The key corresponding to the energy bin indices.
+        average : bool, optional
+            Whether to average the reduced data (default is True).
+        """
+        detector = getattr(run, detector_key)
+        axis1_bins = getattr(run, axis1_key_bins)
+        axis1_indices = getattr(run, axis1_key_indices)
+        axis2_bins = getattr(run, axis2_key_bins)
+        axis2_indices = getattr(run, axis2_key_indices)
+        
+        if len(detector.shape) < 2:
+            reduced_array = np.zeros((axis1_bins.shape[0], axis2_bins.shape[0]))
+        elif len(detector.shape) < 3:
+            reduced_array = np.zeros((axis1_bins.shape[0], axis2_bins.shape[0], detector.shape[1]))
+        elif len(detector.shape) == 3:
+            reduced_array = np.zeros((axis1_bins.shape[0], axis2_bins.shape[0], detector.shape[1], detector.shape[2]))
+        
+        axis1_indices = getattr(run, axis1_key_indices)#digitized indices from detector
+        axis2_indices = getattr(run, axis2_key_indices)#digitized indices from detector
+        
+        reduced_std = np.zeros_like(reduced_array)
+        
+        unique_indices = np.column_stack((axis1_indices, axis2_indices))
+
+        counts = np.zeros_like(reduced_array)
+        for ii in np.arange(reduced_array.shape[0]):
+            for jj in np.arange(reduced_array.shape[1]):
+                mask = (axis1_indices == ii) & (axis2_indices == jj)
+                reduced_std[ii,jj] = np.nanstd(detector[mask], axis = 0)
+                counts[ii,jj] = np.nansum(mask)
+
+        np.add.at(reduced_array, (unique_indices[:, 0], unique_indices[:, 1]), detector)
+        
+        setattr(run, detector_key+'_'+axis1_key_bins.split('_')[0]+'_'+axis2_key_bins.split('_')[0]+'_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
+        
+        run.update_status('Detector %s binned in 2D (%s vs %s) into key: %s'%(detector_key, axis1_key_bins.split('_')[0], axis2_key_bins.split('_')[0], detector_key+'_'+axis1_key_bins.split('_')[0]+'_'+axis2_key_bins.split('_')[0]+'_binned') )
     
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         """
@@ -680,7 +769,7 @@ class SpectroscopyAnalysis:
         Parameters
         ----------
         data2bin : array
-            Array of data to bin (delay or ccm data)
+            Array of data to bin (delay or energy data)
         binlist : array
             The desired set of bins you want to bin the data over
         """
@@ -1121,45 +1210,36 @@ class XESAnalysis(SpectroscopyAnalysis):
 class XASAnalysis(SpectroscopyAnalysis):
     def __init__(self):
         pass;
-    def trim_ccm(self,run,threshold=120):
+    def trim_energy(self,run,threshold=120):
         """
-        Trim CCM values to remove bins with fewer shots than a specified threshold.
+        Trim energy values to remove bins with fewer shots than a specified threshold.
 
         Parameters
         ----------
         run : object
             The spectroscopy run instance.
         threshold : int, optional
-            The minimum number of shots required to keep a CCM value (default is 120).
+            The minimum number of shots required to keep a energy value (default is 120).
         """
         
-        ccm_bins=getattr(run,'ccm_bins',elist_center)
-        ccm_energies=getattr(run,'ccm_energies',elist)
+        energy_bins=getattr(run,'energy_bins',elist_center)
+        energies=getattr(run,'energies',elist)
         counts = np.bincount(bins)
-        trimmed_ccm=ccm_energies[counts[:-1]>120]
-        self.make_ccm_axis(run,ccm_energies)
+        trimmed_energy=energies[counts[:-1]>120]
+        self.make_energy_axis(run,energies)
         
-    def make_ccm_axis(self,run,energies):
+    def make_energy_axis(self,run,energies):
         """
-        Generate CCM bins and centers from given energy values.
+        Generate energy bins and centers from given energy values.
 
         Parameters
         ----------
         run : object
             The spectroscopy run instance.
         energies : array-like
-            Array of energy values to be used for creating CCM bins.
+            Array of energy values to be used for creating energy bins.
         """
         elist=energies
-#         addon = (elist[-1] - elist[-2])/2 # add on energy 
-#         elist2 = np.append(elist,elist[-1]+addon) # elist2 will be elist with dummy value at end
-#         elist_center = np.empty_like(elist2)
-#         for ii in np.arange(elist.shape[0]):
-#             if ii == 0:
-#                 elist_center[ii] = elist2[ii] - (elist2[ii+1] - elist2[ii])/2
-#             else:
-#                 elist_center[ii] = elist2[ii] - (elist2[ii] - elist2[ii-1])/2
-#                 elist_center[-1] = elist2[-1]
         addon = (elist[-1] - elist[-2])/2
         elist2 = np.append(elist,elist[-1]+addon)
         elist_center = np.empty_like(elist)
@@ -1170,11 +1250,12 @@ class XASAnalysis(SpectroscopyAnalysis):
             else:
                 elist_center[ii] = elist2[ii+1] - (elist2[ii+1] - elist2[ii])/2    
     
-        setattr(run,'ccm_bins',elist_center)
-        setattr(run,'ccm_energies',elist)
-    def reduce_detector_ccm_temporal(self, run, detector_key, timing_bin_key_indices,ccm_bin_key_indices,average=True):
+        setattr(run,'energy_bins',elist_center)
+        setattr(run,'energies',elist)
+        
+    def reduce_detector_energy_temporal(self, run, detector_key, timing_bin_key_indices,energy_bin_key_indices,average=True):
         """
-        Reduce detector data temporally and by CCM bins.
+        Reduce detector data temporally and by energy bins.
 
         Parameters
         ----------
@@ -1184,23 +1265,23 @@ class XASAnalysis(SpectroscopyAnalysis):
             The key corresponding to the detector data.
         timing_bin_key_indices : str
             The key corresponding to the timing bin indices.
-        ccm_bin_key_indices : str
-            The key corresponding to the CCM bin indices.
+        energy_bin_key_indices : str
+            The key corresponding to the energy bin indices.
         average : bool, optional
             Whether to average the reduced data (default is True).
         """
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
-        ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.shape(run.time_bins)[0], np.shape(run.ccm_bins)[0]))
+        energy_indices = getattr(run, energy_bin_key_indices)#digitized indices from detector
+        reduced_array = np.zeros((np.shape(run.time_bins)[0], np.shape(run.energy_bins)[0]))
         reduced_std = np.zeros_like(reduced_array)
         
-        unique_indices = np.column_stack((timing_indices, ccm_indices))
+        unique_indices = np.column_stack((timing_indices, energy_indices))
 
         counts = np.zeros_like(reduced_array)
         for ii in np.arange(reduced_array.shape[0]):
             for jj in np.arange(reduced_array.shape[1]):
-                mask = (timing_indices == ii) & (ccm_indices == jj)
+                mask = (timing_indices == ii) & (energy_indices == jj)
                 reduced_std[ii,jj] = np.nanstd(detector[mask], axis = 0)
                 counts[ii,jj] = np.nansum(mask)
 
@@ -1212,10 +1293,11 @@ class XASAnalysis(SpectroscopyAnalysis):
         setattr(run, detector_key+'_std',reduced_std)
         
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
+
         
-    def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False, not_ccm=False):
+    def reduce_detector_energy(self, run, detector_key, energy_bin_key_indices, average = False, not_energy=False):
         """
-        Reduce detector data by CCM bins.
+        Reduce detector data by energy bins.
 
         Parameters
         ----------
@@ -1223,25 +1305,25 @@ class XASAnalysis(SpectroscopyAnalysis):
             The spectroscopy run instance.
         detector_key : str
             The key corresponding to the detector data.
-        ccm_bin_key_indices : str
-            The key corresponding to the CCM bin indices.
+        energy_bin_key_indices : str
+            The key corresponding to the energy bin indices.
         average : bool, optional
             Whether to average the reduced data (default is False).
-        not_ccm : bool, optional
-            Whether to indicate that CCM is not being used (default is False).
+        not_energy : bool, optional
+            Whether to indicate that energy is not being used (default is False).
 
         """
         detector = getattr(run, detector_key)
         
-        indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        if not_ccm:
+        indices = getattr(run, energy_bin_key_indices)#digitized indices from detector
+        if not_energy:
             reduced_array = np.zeros(np.max(indices)+1 )
         else:
-            reduced_array = np.zeros(np.shape(run.ccm_bins)[0]) 
+            reduced_array = np.zeros(np.shape(run.energy_bins)[0]) 
         reduced_std = np.zeros_like(reduced_array)
         counts = np.zeros_like(reduced_array)
         
-        # np.add.at(reduced_array, ccm_indices, detector)
+        # np.add.at(reduced_array, energy_indices, detector)
         if average:
             np.add.at(reduced_array, indices, detector)
             reduced_array /= counts[:, None]
@@ -1304,29 +1386,29 @@ class XASAnalysis(SpectroscopyAnalysis):
         setattr(run, detector_key+'_std',reduced_std)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
         
-    def ccm_binning(self,run,ccm_bins,ccm_key='ccm'):
+    def energy_binning(self,run,energy_bins,energy_key='energy'):
         """
-        Generate CCM bin indices from CCM data and bins.
+        Generate energy bin indices from energy data and bins.
 
         Parameters
         ----------
         run : object
             The spectroscopy run instance.
-        ccm_bins_key : str
-            The key corresponding to the CCM bins.
-        ccm_key : str, optional
-            The key corresponding to the CCM data (default is 'ccm').
+        energy_bins_key : str
+            The key corresponding to the energy bins.
+        energy_key : str, optional
+            The key corresponding to the energy data (default is 'energy').
         """
-        # ccm=getattr(run,ccm_key)
-        # bins=getattr(run,ccm_bins_key)
-        # run.ccm_bin_indices=np.digitize(ccm, bins)
-        run.ccm_bins = ccm_bins
-        ccm = getattr(run, ccm_key)
-        ccm_bins_centered, run.ccm_bin_indices = self.center_binning(ccm, run.ccm_bins)
-        run.ccm_bin_indices = run.ccm_bin_indices - 1
+        # energy=getattr(run,energy_key)
+        # bins=getattr(run,energy_bins_key)
+        # run.energy_bin_indices=np.digitize(energy, bins)
+        run.energy_bins = energy_bins
+        energy = getattr(run, energy_key)
+        energy_bins_centered, run.energy_bin_indices = self.center_binning(energy, run.energy_bins)
+        run.energy_bin_indices = run.energy_bin_indices - 1
         
-        # run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
-        run.update_status('Generated ccm bins.')
+        # run.update_status('Generated energy bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+        run.update_status('Generated energy bins.')
 
 class vonHamos:
     def __init__(self):

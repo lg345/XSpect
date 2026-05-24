@@ -42,10 +42,10 @@ class BatchAnalysis:
         self.crystal_radius=250
         self.adu_cutoff=3.0
         self.rois=[[0,None]]
-        self.mintime=-2.0
-        self.maxtime=10.0
-        self.numpoints=240
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.mintime=None
+        self.maxtime=None
+        self.numpoints=None
+        self.time_step=None
         self.filters=[]
         self.key_epix=['epix_2/ROI_0_area']
         self.friendly_name_epix=['epix']
@@ -500,7 +500,11 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                 start_index=self.start_index
             except AttributeError:
                 start_index=0
-        # self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        if self.time_bins is None:
+            if self.numpoints is not None:
+                self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+            if self.time_step is not None:
+                self.time_bins = np.arange(self.mintime, self.maxtime+self.time_step, self.time_step)
         self.end_index=end_index
         self.start_index=start_index
         
@@ -513,17 +517,21 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         if hasattr(self, 'pixels_to_patch'):
             analysis.pixels_to_patch=self.pixels_to_patch
 
+        ## Make time bins and add filter to remove data outside of time bin limits
         analysis.time_binning(f, self.time_bins)
         self.keys_to_save.extend(['time_bins'])
         self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
         self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
 
+        ## generate additional filters from those identified at jupyter notebook level
         for fil in self.filters:
             analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
     
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
 
+        ## load detector images, if using droplet reconstruction or if using standard ROIs;
+        ## each generates a list of ROIs that will be iterated over for the next steps
         if self.use_droplets:
             analysis.droplet_reconstruction(f, self.key_epix, self.friendly_name_epix, rois = self.rois, shot_range = [self.start_index, self.end_index])
         else:
@@ -533,6 +541,7 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         self.roi_list = [attr for attr in dir(f) if 'epix_ROI' in attr]
         self.keys_to_save.extend(['roi_list'])
 
+        ## hitfinding
         if self.hitfind:
             from XSpect.XSpect_Processor import HitFinding
             f.update_status(f'Starting hit finding')
@@ -548,14 +557,15 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
             f.run_shots['XES_Hits']=len(hits)
             f.sum_images=sum_images
 
-
+        ## iterate of roi list and generate spectra
         for ii, roi in enumerate(self.roi_list):
             if not self.use_droplets:
                 analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
 
             if hasattr(self, 'pixels_to_patch'):
                 analysis.patch_pixels(f,roi,axis=1)
-            
+
+            ## rotate ROI, if an angle is supplied for each ROI
             if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
                 if self.angle[ii] !=0:
                     start = time.time()
@@ -574,23 +584,30 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
                 end = time.time()
                 f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
 
+            ## filter shots logical x-ray AND laser
             analysis.union_shots(f, roi, ['simultaneous', 'laser'])
+            ## filter shots logical x-ray NOT laser
             analysis.separate_shots(f, roi, ['xray', 'laser'])
-        
+
+            ## Sum over spatial dispersion axis to generate XES spectra for each shot laser on/off
             label1 = roi + '_simultaneous_laser'
             setattr(f, label1 + '_reduced', np.flip(np.nansum(getattr(f, label1), axis = -1), axis = 1))
             label2 = roi + '_xray_not_laser'
             setattr(f, label2 + '_reduced', np.flip(np.nansum(getattr(f, label2), axis = -1), axis = 1))
-        
+
+            ## Bin XES spectra laser on/off over time_bins
             label3 = label1 + '_reduced'
-            analysis.reduce_detector_temporal(f, label3, 'timing_bin_indices_simultaneous_laser', average = False)
-            self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])
-            
+            analysis.reduce_detector_1D(f, label3, 'time_bins', 'timing_bin_indices_simultaneous_laser', average = False)
+            # analysis.reduce_detector_temporal(f, label3, 'timing_bin_indices_simultaneous_laser', average = False)
+            self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])     
             
             label4 = label2 + '_reduced'
-            analysis.reduce_detector_temporal(f, label4, 'timing_bin_indices_xray_not_laser', average = False)
+            analysis.reduce_detector_1D(f, label4, 'time_bins', 'timing_bin_indices_xray_not_laser', average = False)
+            # analysis.reduce_detector_temporal(f, label4, 'timing_bin_indices_xray_not_laser', average = False)
             self.keys_to_save.extend([label4 + '_time_binned', label4 + '_bincount', label4 + '_std'])
 
+            ## Generate energy axis for ROI based on crystal parameters supplied in crystal dictionary
+            ## If crystal dictionaries not supplied, use defined d spacing, crystal radius, and detector distance
             pixels = getattr(f, label3 + '_time_binned').shape[1]
 
             if hasattr(self, 'crystal_dict'):
@@ -673,21 +690,354 @@ class XESBatchAnalysisRotation(XESBatchAnalysis):
         return f
             
         
+class RIXSBatchAnalysis_2D(BatchAnalysis):     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mintime=None
+        self.maxtime=None
+        self.numpoints=None
+        self.time_step=None
+        self.minenergy=7.105
+        self.maxenergy=7.135
+        self.numpoints_energy=90
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
+            try:
+                start_index=self.start_index
+            except AttributeError:
+                start_index=0
+
+        self.end_index=end_index
+        self.start_index=start_index
+        
+        if self.time_bins is None:
+            if self.numpoints is not None:
+                self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+            if self.time_step is not None:
+                self.time_bins = np.arange(self.mintime, self.maxtime+self.time_step, self.time_step)
+
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
+        
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        analysis=XESAnalysis()
+
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
+
+        analysis.time_binning(f, self.time_bins)
+        self.keys_to_save.extend(['time_bins'])
+        self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+        self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+
+        analysis.energy_binning(f,self.energy_bins,'energy')
+
+        for fil in self.filters:
+            analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+    
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+
+        if self.use_droplets:
+            analysis.droplet_reconstruction(f, self.key_epix, self.friendly_name_epix, rois = self.rois, shot_range = [self.start_index, self.end_index])
+        else:
+            f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi,combine = self.combine_rois)
+            analysis.apply_roi(f, self.friendly_name_epix[0], rois = self.rois, combine = self.combine_rois)
+
+        self.roi_list = [attr for attr in dir(f) if 'epix_ROI' in attr]
+        self.keys_to_save.extend(['roi_list'])
+
+        if self.hitfind:
+            from XSpect.XSpect_Processor import HitFinding
+            f.update_status(f'Starting hit finding')
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median intensity: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+            f.epix=f.epix[hits]
+            f.xray=f.xray[hits]
+            f.laser=f.laser[hits]
+            f.simultaneous=np.logical_and(f.xray,f.laser)
+            f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
+            for name in self.friendly_names:
+                setattr(f, name,getattr(f,name)[hits])
+            f.run_shots['XES_Hits']=len(hits)
+            f.sum_images=sum_images
+
+
+        for ii, roi in enumerate(self.roi_list):
+            if not self.use_droplets:
+                analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
+
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.patch_pixels(f,roi,axis=1)
+            
+            if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
+                if self.angle[ii] !=0:
+                    start = time.time()
+                    setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
+                    end = time.time()
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[ii], end - start))
+            elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
+                f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[0], end - start))
+            elif self.angle != 0 and not isinstance(self.angle, list):
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+
+            analysis.union_shots(f, roi, ['simultaneous', 'laser'])
+            analysis.separate_shots(f, roi, ['xray', 'laser'])
+        
+            label1 = roi + '_simultaneous_laser'
+            setattr(f, label1 + '_reduced', np.flip(np.nansum(getattr(f, label1), axis = -1), axis = 1))
+            label2 = roi + '_xray_not_laser'
+            setattr(f, label2 + '_reduced', np.flip(np.nansum(getattr(f, label2), axis = -1), axis = 1))
+        
+            label3 = label1 + '_reduced'
+            # analysis.reduce_detector_temporal(f, label3, 'timing_bin_indices_simultaneous_laser', average = False)
+            analysis.reduce_detector_2D(f, label3, 'time_bins', 'timing_bin_indices_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average = False)
+            self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])
+            
+            label4 = label2 + '_reduced'
+            analysis.reduce_detector_2D(f, label4, 'time_bins', 'timing_bin_indices_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average = False)
+            self.keys_to_save.extend([label4 + '_time_binned', label4 + '_bincount', label4 + '_std'])
+
+            pixels = getattr(f, label3 + '_time_binned').shape[1]
+
+            if hasattr(self, 'crystal_dict'):
+                if isinstance(self.crystal_dict, dict) and self.crystal_dict != {}:
+                    vH = vonHamos()
+                    crystal = self.crystal_dict['crystal']
+                    h = self.crystal_dict['h']
+                    k = self.crystal_dict['k']
+                    l = self.crystal_dict['l']
+                    d_space = vH.dspacing(crystal, h, k, l)
+                    
+                    radius = self.crystal_dict['radius']
+                    detector_distance = self.crystal_dict['detector_distance']
+                elif isinstance(self.crystal_dict, list) and self.crystal_dict != []:
+                    vH = vonHamos()
+                    if len(self.crystal_dict) == len(self.roi_list):
+                        crystal = self.crystal_dict[ii]['crystal']
+                        h = self.crystal_dict[ii]['h']
+                        k = self.crystal_dict[ii]['k']
+                        l = self.crystal_dict[ii]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[ii]['radius']
+                        detector_distance = self.crystal_dict[ii]['detector_distance']
+                    else:
+                        crystal = self.crystal_dict[0]['crystal']
+                        h = self.crystal_dict[0]['h']
+                        k = self.crystal_dict[0]['k']
+                        l = self.crystal_dict[0]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[0]['radius']
+                        detector_distance = self.crystal_dict[0]['detector_distance']
+                else:
+                    d_space = self.crystal_d_space
+                    radius = self.crystal_radius
+                    detector_distance = self.crystal_detector_distance
+                    
+                analysis.make_energy_axis(f, pixels, A=detector_distance, R=radius, d=d_space, name = roi)
+
+            self.keys_to_save.extend([roi + '_energy'])
             
 
+        f.purge_all_keys(self.keys_to_save)
+
+        return f
         
+class RIXSBatchAnalysis_1D(BatchAnalysis):     
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.numpoints=None
+        self.time_step=None
+        self.minenergy=7.105
+        self.maxenergy=7.135
+        self.numpoints_energy=90
+        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.filters=[]
+    def primary_analysis(self,experiment,run,verbose=False,start_index=None,end_index=None):
+        if end_index==None:
+            end_index=self.end_index
+        if start_index==None:
+            try:
+                start_index=self.start_index
+            except AttributeError:
+                start_index=0
+
+        self.end_index=end_index
+        self.start_index=start_index
+        
+        if self.time_bins is None:
+            if self.numpoints is not None:
+                self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+            if self.time_step is not None:
+                self.time_bins = np.arange(self.mintime, self.maxtime+self.time_step, self.time_step)
+
+        if self.scattering==True:
+            f.load_sum_run_scattering('epix10k2M/azav_azav')
+            f.ipm=f.scattering[:]
+        
+        f=spectroscopy_run(experiment,run,verbose=verbose,start_index=start_index,end_index=end_index)
+        analysis=XESAnalysis()
+
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+
+        if hasattr(self, 'pixels_to_patch'):
+            analysis.pixels_to_patch=self.pixels_to_patch
+
+        analysis.time_binning(f, self.time_bins)
+        self.keys_to_save.extend(['time_bins'])
+        self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+        self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+
+        analysis.energy_binning(f,self.energy_bins,'energy')
+
+        for fil in self.filters:
+            analysis.filter_shots(f, fil['FilterType'], fil['FilterKey'], fil['FilterThreshold'])
+    
+        analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
+
+        if self.use_droplets:
+            analysis.droplet_reconstruction(f, self.key_epix, self.friendly_name_epix, rois = self.rois, shot_range = [self.start_index, self.end_index])
+        else:
+            f.load_run_key_delayed(self.key_epix,self.friendly_name_epix,rois=self.import_roi,combine = self.combine_rois)
+            analysis.apply_roi(f, self.friendly_name_epix[0], rois = self.rois, combine = self.combine_rois)
+
+        self.roi_list = [attr for attr in dir(f) if 'epix_ROI' in attr]
+        self.keys_to_save.extend(['roi_list'])
+
+        if self.hitfind:
+            from XSpect.XSpect_Processor import HitFinding
+            f.update_status(f'Starting hit finding')
+            hits,mean_sum,std_sum,threshold,sum_images=HitFinding.basic_detect(f.epix,cutoff_multiplier=1,absolute_threshold=100)
+            f.update_status(f'Hit finding on epix. Hits found: {str(len(hits))}, median intensity: {str(mean_sum)}, std: {std_sum}, threshold: {threshold}')
+            f.epix=f.epix[hits]
+            f.xray=f.xray[hits]
+            f.laser=f.laser[hits]
+            f.simultaneous=np.logical_and(f.xray,f.laser)
+            f.update_status(f'Applying Hits to ePix detector. New size {str(np.shape(f.epix)[0])}')
+            for name in self.friendly_names:
+                setattr(f, name,getattr(f,name)[hits])
+            f.run_shots['XES_Hits']=len(hits)
+            f.sum_images=sum_images
+
+
+        for ii, roi in enumerate(self.roi_list):
+            if not self.use_droplets:
+                analysis.filter_detector_adu(f,roi,adu_threshold=self.adu_cutoff)
+
+            if hasattr(self, 'pixels_to_patch'):
+                analysis.patch_pixels(f,roi,axis=1)
+            
+            if isinstance(self.angle, list) and (len(self.angle) == len(self.roi_list)):
+                if self.angle[ii] !=0:
+                    start = time.time()
+                    setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[ii], axes = [1,2]))
+                    end = time.time()
+                    f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[ii], end - start))
+            elif isinstance(self.angle, list) and not (len(self.angle) == len(self.roi_list)):
+                f.update_status('Length of provided list of angles does not match length of provided ROIs, will apply first angle to all ROIs...')
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle[0], axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle[0], end - start))
+            elif self.angle != 0 and not isinstance(self.angle, list):
+                start = time.time()
+                setattr(f, roi, rotate(getattr(f, roi), angle = self.angle, axes = [1,2]))
+                end = time.time()
+                f.update_status('Rotated %s by %f degrees. Time: %.02f' % (roi, self.angle, end - start))
+
+            analysis.union_shots(f, roi, ['simultaneous', 'laser'])
+            analysis.separate_shots(f, roi, ['xray', 'laser'])
+        
+            label1 = roi + '_simultaneous_laser'
+            setattr(f, label1 + '_reduced', np.flip(np.nansum(getattr(f, label1), axis = -1), axis = 1))
+            label2 = roi + '_xray_not_laser'
+            setattr(f, label2 + '_reduced', np.flip(np.nansum(getattr(f, label2), axis = -1), axis = 1))
+        
+            label3 = label1 + '_reduced'           
+            analysis.reduce_detector_1D(f, label3, 'energy_bins', 'energy_bin_indices_simultaneous_laser', average = False)
+            self.keys_to_save.extend([label3 + '_time_binned', label3 + '_bincount', label3 + '_std'])
+            
+            label4 = label2 + '_reduced'
+            analysis.reduce_detector_1D(f, label4, 'energy_bins', 'energy_bin_indices_xray_not_laser', average = False)
+            self.keys_to_save.extend([label4 + '_time_binned', label4 + '_bincount', label4 + '_std'])
+
+            pixels = getattr(f, label3 + '_time_binned').shape[1]
+
+            if hasattr(self, 'crystal_dict'):
+                if isinstance(self.crystal_dict, dict) and self.crystal_dict != {}:
+                    vH = vonHamos()
+                    crystal = self.crystal_dict['crystal']
+                    h = self.crystal_dict['h']
+                    k = self.crystal_dict['k']
+                    l = self.crystal_dict['l']
+                    d_space = vH.dspacing(crystal, h, k, l)
+                    
+                    radius = self.crystal_dict['radius']
+                    detector_distance = self.crystal_dict['detector_distance']
+                elif isinstance(self.crystal_dict, list) and self.crystal_dict != []:
+                    vH = vonHamos()
+                    if len(self.crystal_dict) == len(self.roi_list):
+                        crystal = self.crystal_dict[ii]['crystal']
+                        h = self.crystal_dict[ii]['h']
+                        k = self.crystal_dict[ii]['k']
+                        l = self.crystal_dict[ii]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[ii]['radius']
+                        detector_distance = self.crystal_dict[ii]['detector_distance']
+                    else:
+                        crystal = self.crystal_dict[0]['crystal']
+                        h = self.crystal_dict[0]['h']
+                        k = self.crystal_dict[0]['k']
+                        l = self.crystal_dict[0]['l']
+                        d_space = vH.dspacing(crystal, h, k, l)
+                        
+                        radius = self.crystal_dict[0]['radius']
+                        detector_distance = self.crystal_dict[0]['detector_distance']
+                else:
+                    d_space = self.crystal_d_space
+                    radius = self.crystal_radius
+                    detector_distance = self.crystal_detector_distance
+                    
+                analysis.make_energy_axis(f, pixels, A=detector_distance, R=radius, d=d_space, name = roi)
+
+            self.keys_to_save.extend([roi + '_energy'])
+            
+
+        f.purge_all_keys(self.keys_to_save)
+
+        return f
     
 
 class XASBatchAnalysis(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.mintime=-2.0
-        self.maxtime=10.0
-        self.numpoints=240
-        self.minccm=7.105
-        self.maxccm=7.135
-        self.numpoints_ccm=90
-        self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+        self.mintime=None
+        self.maxtime=None
+        self.numpoints=None
+        self.time_step=None
+        self.minenergy=7.105
+        self.maxenergy=7.135
+        self.numpoints_energy=90
         self.filters=[]
     def primary_analysis_loop(self, experiment, verbose=False):
         self.update_status(f"Starting primary analysis loop with experiment={experiment}, verbose={verbose}.")
@@ -718,54 +1068,65 @@ class XASBatchAnalysis(BatchAnalysis):
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
         f.get_run_shot_properties()
-        
         f.load_run_keys(self.keys,self.friendly_names)
+        
         if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
             f.ipm=f.scattering[:]
+            
         analysis=XASAnalysis()
+        
+        if self.time_bins is None:
+            if self.numpoints is not None:
+                self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
+            if self.time_step is not None:
+                self.time_bins = np.arange(self.mintime, self.maxtime+self.time_step, self.time_step)
+                
         try:
-            elist = self.ccm_bins
+            elist = self.energy_bins
         except:
             self.update_status('elist not provided')
             try:
-                ccm_val = getattr(f, 'ccm_E_setpoint')
-                elist = np.unique(ccm_val)
-                setattr(self, 'ccm_bins', elist)
+                energy_val = getattr(f, 'energy_E_setpoint')
+                elist = np.unique(energy_val)
+                setattr(self, 'energy_bins', elist)
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e.args[0])
-                elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
-                setattr(self, 'ccm_bins', elist)
-        # analysis.make_ccm_axis(f,elist)
+                elist = np.linspace(self.minenergy,self.maxenergy,self.numpoints_energy)
+                setattr(self, 'energy_bins', elist)
+
         analysis.time_binning(f,self.time_bins)
         self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
         self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+
+        analysis.energy_binning(f,self.energy_bins,'energy')
+        
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+            
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         analysis.union_shots(f,'ipm',['simultaneous','laser'])
         analysis.separate_shots(f,'ipm',['xray','laser'])
-        analysis.union_shots(f,'ccm',['simultaneous','laser'])
-        analysis.separate_shots(f,'ccm',['xray','laser'])
-        # self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
-        analysis.ccm_binning(f,self.ccm_bins,'ccm')
+        analysis.union_shots(f,'energy',['simultaneous','laser'])
+        analysis.separate_shots(f,'energy',['xray','laser'])
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
-        analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
-        analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
-        analysis.reduce_detector_ccm_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
-        analysis.reduce_detector_ccm_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
-        analysis.reduce_detector_ccm_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=True)
-        analysis.reduce_detector_ccm_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser','ccm_bin_indices_xray_not_laser',average=True)
+        analysis.union_shots(f,'energy_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'energy_bin_indices',['xray','laser'])
+        
+        analysis.reduce_detector_2D(f, 'epix_simultaneous_laser', 'time_bins', 'timing_bin_indices_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average=True)
+        analysis.reduce_detector_2D(f, 'epix_xray_not_laser', 'time_bins', 'timing_bin_indices_xray_not_laser', 'energy_bins', 'energy_bin_indices_xray_not_laser', average=True)
+        analysis.reduce_detector_2D(f, 'ipm_simultaneous_laser', 'time_bins', 'timing_bin_indices_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average=True)
+        analysis.reduce_detector_2D(f, 'ipm_xray_not_laser', 'time_bins', 'timing_bin_indices_xray_not_laser', 'energy_bins', 'energy_bin_indices_xray_not_laser', average=True)
         return f
 
-class XASBatchAnalysis_1D_ccm(BatchAnalysis):
+class XASBatchAnalysis_1D_energy(BatchAnalysis):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.minccm=7.105
-        self.maxccm=7.135
-        self.numpoints_ccm=100
+        self.minenergy=7.105
+        self.maxenergy=7.135
+        self.numpoints_energy=100
         self.filters=[]
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
@@ -778,33 +1139,40 @@ class XASBatchAnalysis_1D_ccm(BatchAnalysis):
             
         analysis=XASAnalysis()
         try:
-            elist = self.ccm_bins
+            elist = self.energy_bins
         except:
             self.update_status('elist not provided')
             try:
-                ccm_val = getattr(f, 'ccm_E_setpoint')
-                elist = np.unique(ccm_val)
-                setattr(self, 'ccm_bins', elist)
+                energy_val = getattr(f, 'energy_E_setpoint')
+                elist = np.unique(energy_val)
+                setattr(self, 'energy_bins', elist)
             except KeyError as e:
                 self.update_status('Key does not exist: %s' % e.args[0])
-                elist = np.linspace(self.minccm,self.maxccm,self.numpoints_ccm)
-                setattr(self, 'ccm_bins', elist)
-        # analysis.make_ccm_axis(f,elist)
+                elist = np.linspace(self.minenergy,self.maxenergy,self.numpoints_energy)
+                setattr(self, 'energy_bins', elist)
+
+        ## generate bin indices for energy
+        analysis.energy_binning(f,self.energy_bins,'energy')  
+
+        ## add filters from those defined in jupyter notebook
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+            
+        ## filter shots laser on/off for detector, ipm, and energy
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         analysis.union_shots(f,'ipm',['simultaneous','laser'])
         analysis.separate_shots(f,'ipm',['xray','laser'])
-        analysis.union_shots(f,'ccm',['simultaneous','laser'])
-        analysis.separate_shots(f,'ccm',['xray','laser'])
-        analysis.ccm_binning(f,self.ccm_bins,'ccm')
-        analysis.union_shots(f,'ccm_bin_indices',['simultaneous','laser'])
-        analysis.separate_shots(f,'ccm_bin_indices',['xray','laser'])
-        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','ccm_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','ccm_bin_indices_xray_not_laser',average=False)
+        analysis.union_shots(f,'energy',['simultaneous','laser'])
+        analysis.separate_shots(f,'energy',['xray','laser'])
+        analysis.union_shots(f,'energy_bin_indices',['simultaneous','laser'])
+        analysis.separate_shots(f,'energy_bin_indices',['xray','laser'])
+        
+        ## bin data along energy axis for epix and ipm laser on/off 
+        analysis.reduce_detector_1D(f, 'epix_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'epix_xray_not_laser','energy_bins', 'energy_bin_indices_xray_not_laser', average=False)
+        analysis.reduce_detector_1D(f, 'ipm_simultaneous_laser', 'energy_bins', 'energy_bin_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'ipm_xray_not_laser', 'energy_bins', 'energy_bin_indices_xray_not_laser', average=False)
         return f
 
 class XASBatchAnalysis_1D_time(BatchAnalysis):
@@ -813,35 +1181,44 @@ class XASBatchAnalysis_1D_time(BatchAnalysis):
         self.mintime=-2.0
         self.maxtime=10.0
         self.numpoints=240
-        self.minccm=7.105
-        self.maxccm=7.135
-        self.numpoints_ccm=90
+        self.minenergy=7.105
+        self.maxenergy=7.135
+        self.numpoints_energy=90
         self.time_bins=np.linspace(self.mintime,self.maxtime,self.numpoints)
         self.filters=[]
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run,verbose=verbose)
-        f.get_run_shot_properties()
+        analysis=XASAnalysis()
         
+        f.get_run_shot_properties()    
         f.load_run_keys(self.keys,self.friendly_names)
+        
         if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
             f.ipm=f.scattering[:]
-        analysis=XASAnalysis()
+
+        ## generate bin indices for time
         analysis.time_binning(f,self.time_bins)
         self.add_filter('xray', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
         self.add_filter('simultaneous', 'delays', (min(f.time_bins_centered), max(f.time_bins_centered)))
+
+        ## add filters from those defined in jupyter notebook
         for fil in self.filters:
             analysis.filter_shots(f,fil['FilterType'],fil['FilterKey'],fil['FilterThreshold']) 
+
+        ## filter shots laser on/off for detector, ipm, and energy
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         analysis.union_shots(f,'ipm',['simultaneous','laser'])
         analysis.separate_shots(f,'ipm',['xray','laser'])
         analysis.union_shots(f,'timing_bin_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'timing_bin_indices',['xray','laser'])
-        analysis.reduce_detector_temporal(f,'epix_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_temporal(f,'epix_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
-        analysis.reduce_detector_temporal(f,'ipm_simultaneous_laser','timing_bin_indices_simultaneous_laser',average=False)
-        analysis.reduce_detector_temporal(f,'ipm_xray_not_laser','timing_bin_indices_xray_not_laser',average=False)
+
+        ## bin data along time axis for epix and ipm laser on/off 
+        analysis.reduce_detector_1D(f, 'epix_simultaneous_laser', 'time_bins', 'timing_bin_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'epix_xray_not_laser','time_bins', 'timing_bin_indices_xray_not_laser', average=False)
+        analysis.reduce_detector_1D(f, 'ipm_simultaneous_laser', 'time_bins', 'timing_bin_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'ipm_xray_not_laser', 'time_bins', 'timing_bin_indices_xray_not_laser', average=False)
         return f
 
 class ScanAnalysis_1D(BatchAnalysis):
@@ -850,12 +1227,15 @@ class ScanAnalysis_1D(BatchAnalysis):
         pass
     def primary_analysis(self,experiment,run,verbose=False):
         f=spectroscopy_run(experiment,run=run,verbose=True)
+        analysis=XASAnalysis()
+        
+        f.get_run_shot_properties()
+        f.load_run_keys(self.keys,self.friendly_names)
+
         if self.scattering==True:
             f.load_sum_run_scattering('epix10k2M/azav_azav')
             f.ipm=f.scattering[:]
-        analysis=XASAnalysis()
-        f.get_run_shot_properties()
-        f.load_run_keys(self.keys,self.friendly_names)
+        
         with h5py.File(f.run_file, 'r') as fh:
             try:
                 scanlist = list(fh['scan'].keys())
@@ -865,19 +1245,23 @@ class ScanAnalysis_1D(BatchAnalysis):
                 setattr(f, 'motorname', motorname)
             except:
                 pass
+                
+        ## Generate scanvar_bins from unique values of scan key in h5
         analysis.bin_uniques(f,'scan')
+        
+        ## Filter laser on/off for epix, ipm, and scanv
         analysis.union_shots(f,'epix',['simultaneous','laser'])
         analysis.separate_shots(f,'epix',['xray','laser'])
         analysis.union_shots(f,'ipm',['simultaneous','laser'])
         analysis.separate_shots(f,'ipm',['xray','laser'])
-        analysis.union_shots(f,'scan',['simultaneous','laser'])
-        analysis.separate_shots(f,'scan',['xray','laser'])
         analysis.union_shots(f,'scanvar_indices',['simultaneous','laser'])
         analysis.separate_shots(f,'scanvar_indices',['xray','laser'])
-        analysis.reduce_detector_ccm(f,'epix_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
-        analysis.reduce_detector_ccm(f,'epix_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
-        analysis.reduce_detector_ccm(f,'ipm_simultaneous_laser','scanvar_indices_simultaneous_laser',average=False,not_ccm=True)
-        analysis.reduce_detector_ccm(f,'ipm_xray_not_laser','scanvar_indices_xray_not_laser',average=False,not_ccm=True)
+
+        ## bin data along scanvar axis for epix and ipm laser on/off 
+        analysis.reduce_detector_1D(f, 'epix_simultaneous_laser', 'scanvar_bins', 'scanvar_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'epix_xray_not_laser','scanvar_bins', 'scanvar_indices_xray_not_laser', average=False)
+        analysis.reduce_detector_1D(f, 'ipm_simultaneous_laser', 'scanvar_bins', 'scanvar_indices_simultaneous_laser', average = False)
+        analysis.reduce_detector_1D(f,'ipm_xray_not_laser', 'scanvar_bins', 'scanvar_indices_xray_not_laser', average=False)
         return f
 
 class ScanAnalysis_1D_XES(BatchAnalysis):
