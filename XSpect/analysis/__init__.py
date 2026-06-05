@@ -9,3 +9,8 @@ from XSpect.analysis.registry import (
     StepNotFoundError,
     ReductionNotFoundError,
 )
+
+# Import step modules to trigger registration
+import XSpect.analysis.spectroscopy  # noqa: F401
+import XSpect.analysis.xes  # noqa: F401
+import XSpect.analysis.xas  # noqa: F401

@@ -1,0 +1,10 @@
+Execute all remaining phases (1B, 1C, 2, 3, 4) of the XSpect YAML pipeline architecture.
+Do not merge to master until the entire pipeline is working.
+
+Phase 1B: Register actual analysis steps from XSpect_Analysis.py as @register_step functions
+Phase 1C: Integration testing - prove the pipeline executes real analysis workflows
+Phase 2: Time-resolved XES works via YAML
+Phase 3: XAS analysis works via YAML
+Phase 4: Visualization/PostProcessing integration
+
+All work stays on feature/yaml-pipeline-architecture branch.
