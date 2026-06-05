@@ -4,3 +4,10 @@ Controller_Plans.ipynb
 XSpect_XES_examples.ipynb
 *.swp
 XSpect/*.swp
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Coverage
+.coverage
