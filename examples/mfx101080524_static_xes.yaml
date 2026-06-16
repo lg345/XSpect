@@ -1,0 +1,65 @@
+# Static XES analysis for mfx101080524 (AlkB Fe Ka)
+# Replicates the workflow in XSpect_XES_mfx101080524.ipynb
+#
+# Old pattern:
+#   xes = XESBatchAnalysisRotation()
+#   xes.rois = [[89, 105]]
+#   xes.adu_cutoff = 3.0
+#   xes.angle = -1.0
+#   xes.run_parser(['237-239'])
+#   xes.primary_analysis_parallel_range(4, experiment, method=xes.primary_analysis_static, increment=500)
+#
+# New pattern:
+#   pipe = Pipeline.from_yaml("mfx101080524_static_xes.yaml")
+#   pipe.run(cores=4, batch_size=500)
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101080524
+  lcls_run: 24
+
+data:
+  runs: [237-239]
+  keys:
+    ipm_dg2/sum: ipm
+  detector_keys:
+    epix_1/ROI_0_area:
+      name: epix
+      rois: [[89, 105]]
+      combine_rois: true
+      transpose: false
+
+pipeline:
+  # Rotate detector images to align crystal axis (-1 deg for this experiment)
+  - step: rotate_detector
+    on: epix_ROI_1
+    angle: -1.0
+
+  # ADU threshold (removes single-photon noise)
+  - step: filter_detector_adu
+    on: epix_ROI_1
+    adu_threshold: 3.0
+
+  # Sum all xray-on shots (static, no time-resolved)
+  - step: reduce_detector_shots
+    on: epix_ROI_1
+    reduction: sum
+
+  # Fix bad pixels at columns 351-352
+  - step: patch_pixels
+    on: epix_ROI_1_reduced
+    pixels: [351, 352]
+    mode: polynomial
+
+  # Convert pixel axis to energy (vonHamos geometry for Fe Ka)
+  - step: make_energy_axis
+    detector_key: epix_ROI_1
+    crystal_detector_distance: 42.75
+    crystal_radius: 250.0
+    d_spacing: 0.981
+    mm_per_pixel: 0.05
+    name: xes
+
+output:
+  format: hdf5
+  path: ./results/mfx101080524_static/

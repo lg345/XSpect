@@ -126,6 +126,12 @@ reduction:
 | `load_detector` | `keys`, `friendly_names`, `transpose`, `rois`, `combine_rois` | Load 3D detector data |
 | `get_run_shot_properties` | (none) | Set xray/laser/simultaneous boolean masks from lightStatus |
 
+### Detector Geometry
+
+| Step | Parameters | Description |
+|------|-----------|-------------|
+| `rotate_detector` | `on`, `angle`, `axes` | Rotate detector images by a fixed angle (degrees, positive=CCW). Default axes: [1,2] for 3D, [0,1] for 2D |
+
 ### Shot Filtering
 
 | Step | Parameters | Description |

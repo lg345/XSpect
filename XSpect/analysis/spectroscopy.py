@@ -7,6 +7,7 @@ All results written to run.results[key].
 """
 
 import numpy as np
+from scipy.ndimage import rotate
 from XSpect.analysis.registry import register_step, register_reduction
 
 
@@ -105,6 +106,42 @@ def filter_detector_adu(run, **kwargs):
 
     setattr(run, detector_key, filtered)
     run.update_status(f"ADU filtered {detector_key} with threshold {adu_threshold}")
+
+
+@register_step("rotate_detector")
+def rotate_detector(run, **kwargs):
+    """Rotate detector images by a fixed angle (scipy.ndimage.rotate).
+
+    Applied per-shot. For 3D data (shots x rows x cols), rotates in the
+    (rows, cols) plane. For 2D data (rows x cols), rotates directly.
+    Skipped when angle is 0.
+
+    Parameters from YAML:
+        on: detector key
+        angle: rotation in degrees (positive = CCW)
+        axes: rotation plane as [ax1, ax2] (default [1, 2] for 3D, [0, 1] for 2D)
+    """
+    detector_key = kwargs.get("on")
+    angle = kwargs.get("angle", 0)
+    axes = kwargs.get("axes", None)
+    if detector_key is None or angle == 0:
+        return
+
+    data = getattr(run, detector_key, None)
+    if data is None:
+        return
+
+    if axes is None:
+        axes = [0, 1] if data.ndim == 2 else [1, 2]
+
+    # Static analysis path (2D) uses axes=[0,1]; per-shot 3D uses [1,2]
+    # The old XESBatchAnalysisRotation uses [0,1] for the static case
+    if data.ndim == 3 and axes == [0, 1]:
+        axes = [1, 2]
+
+    rotated = rotate(data, angle=angle, axes=axes, reshape=False)
+    setattr(run, detector_key, rotated)
+    run.update_status(f"Rotated {detector_key} by {angle} degrees (axes={axes})")
 
 
 @register_step("union_shots")
