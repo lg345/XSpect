@@ -136,6 +136,11 @@ class Pipeline:
                 combine=det_config.combine_rois,
             )
 
+        # Close the h5py file handle so the run object is picklable for multiprocessing
+        if hasattr(run, 'h5'):
+            run.h5.close()
+            del run.h5
+
 
 class _MockExperiment:
     """Fallback experiment object when real data paths are unavailable."""
