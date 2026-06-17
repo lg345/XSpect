@@ -114,13 +114,15 @@ def patch_pixels(run, **kwargs):
     """Repair bad pixels by interpolation from neighbors.
 
     Parameters from YAML:
-        on: detector key (2D array: bins x pixels)
+        on: detector key
         pixels: list of pixel indices to patch
         mode: "interpolate" or "zero" (default "interpolate")
+        axis: which axis the pixel indices refer to (default: last axis for 2D, 0 for 1D)
     """
     detector_key = kwargs.get("on")
     pixels = kwargs.get("pixels", [])
     mode = kwargs.get("mode", "interpolate")
+    axis = kwargs.get("axis", None)
     if detector_key is None or not pixels:
         return
 
@@ -128,18 +130,24 @@ def patch_pixels(run, **kwargs):
     if data is None:
         return
 
+    if axis is None:
+        axis = 0 if data.ndim == 1 else data.ndim - 1
+
+    n_pixels = data.shape[axis]
+
     for pixel in pixels:
-        if data.ndim == 2:
-            n_pixels = data.shape[1]
-            if mode == "interpolate" and 0 < pixel < n_pixels - 1:
-                data[:, pixel] = (data[:, pixel - 1] + data[:, pixel + 1]) / 2
-            else:
-                data[:, pixel] = 0
-        elif data.ndim == 1:
-            if mode == "interpolate" and 0 < pixel < len(data) - 1:
-                data[pixel] = (data[pixel - 1] + data[pixel + 1]) / 2
-            else:
-                data[pixel] = 0
+        if pixel < 0 or pixel >= n_pixels:
+            continue
+        slc = [slice(None)] * data.ndim
+        slc[axis] = pixel
+        if mode == "interpolate" and 0 < pixel < n_pixels - 1:
+            slc_prev = [slice(None)] * data.ndim
+            slc_prev[axis] = pixel - 1
+            slc_next = [slice(None)] * data.ndim
+            slc_next[axis] = pixel + 1
+            data[tuple(slc)] = (data[tuple(slc_prev)] + data[tuple(slc_next)]) / 2
+        else:
+            data[tuple(slc)] = 0
 
     setattr(run, detector_key, data)
-    run.update_status(f"Patched {len(pixels)} pixels on {detector_key}")
+    run.update_status(f"Patched {len(pixels)} pixels on {detector_key} (axis={axis})")

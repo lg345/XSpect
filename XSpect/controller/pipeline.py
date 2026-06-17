@@ -129,11 +129,14 @@ class Pipeline:
         run.get_run_shot_properties()
 
         for det_config in self.config.data.detector_keys:
+            kwargs = {}
+            if det_config.rois is not None:
+                kwargs['rois'] = det_config.rois
+                kwargs['combine'] = det_config.combine_rois
             run.load_run_key_delayed(
                 [det_config.hdf5_path],
                 [det_config.name],
-                rois=det_config.rois,
-                combine=det_config.combine_rois,
+                **kwargs,
             )
 
         # Close the h5py file handle so the run object is picklable for multiprocessing

@@ -113,7 +113,7 @@ def _parse_data(raw: dict) -> DataConfig:
             detector_keys.append(DetectorKeyConfig(
                 hdf5_path=str(hdf5_path),
                 name=config.get('name', hdf5_path),
-                rois=config.get('rois', [[0, -1]]),
+                rois=config.get('rois', None),
                 combine_rois=config.get('combine_rois', True),
             ))
 

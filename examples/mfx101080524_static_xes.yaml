@@ -6,6 +6,7 @@
 #   xes.rois = [[89, 105]]
 #   xes.adu_cutoff = 3.0
 #   xes.angle = -1.0
+#   xes.pixels_to_patch = [351, 352]
 #   xes.run_parser(['237-239'])
 #   xes.primary_analysis_parallel_range(4, experiment, method=xes.primary_analysis_static, increment=500)
 #
@@ -25,35 +26,41 @@ data:
   detector_keys:
     epix_1/ROI_0_area:
       name: epix
-      rois: [[89, 105]]
-      combine_rois: true
       transpose: false
 
 pipeline:
-  # Rotate detector images to align crystal axis (-1 deg for this experiment)
+  # 1. Patch bad pixels on the full detector (dispersion axis = axis 1 for 3D)
+  - step: patch_pixels
+    on: epix
+    pixels: [351, 352]
+    mode: polynomial
+    axis: 1
+
+  # 2. Rotate detector images to align crystal axis
   - step: rotate_detector
-    on: epix_ROI_1
+    on: epix
     angle: -1.0
 
-  # ADU threshold (removes single-photon noise)
+  # 3. ADU threshold (removes single-photon noise)
   - step: filter_detector_adu
-    on: epix_ROI_1
+    on: epix
     adu_threshold: 3.0
 
-  # Sum all xray-on shots (static, no time-resolved)
+  # 4. Apply ROI and sum across cross-dispersion direction
+  - step: reduce_detector_spatial
+    on: epix
+    rois: [[89, 105]]
+    combine_rois: true
+    reduction: sum
+
+  # 5. Sum all shots (static spectrum)
   - step: reduce_detector_shots
     on: epix_ROI_1
     reduction: sum
 
-  # Fix bad pixels at columns 351-352
-  - step: patch_pixels
-    on: epix_ROI_1_reduced
-    pixels: [351, 352]
-    mode: polynomial
-
-  # Convert pixel axis to energy (vonHamos geometry for Fe Ka)
+  # 6. Convert pixel axis to energy (vonHamos geometry for Fe Ka)
   - step: make_energy_axis
-    detector_key: epix_ROI_1
+    detector_key: epix_ROI_1_reduced
     crystal_detector_distance: 42.75
     crystal_radius: 250.0
     d_spacing: 0.981
