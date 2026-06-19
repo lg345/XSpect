@@ -66,14 +66,27 @@ class Pipeline:
 
         exp = self._create_experiment()
 
+        detector_configs = [
+            (dc.hdf5_path, dc.name, dc.transpose)
+            for dc in self.config.data.detector_keys
+        ]
+        scalar_keys = [
+            (dk.hdf5_path, dk.friendly_name)
+            for dk in self.config.data.keys
+        ]
+
         for run_number in self.config.data.runs:
             self._status_log.append(f"Processing run {run_number}")
             run = self._create_run(exp, run_number)
-            self._load_data(run)
+            self._load_data(run, skip_detector=True)
 
             if hasattr(run, 'total_shots') and run.total_shots > batch_size:
-                run_batched(run, self.config.pipeline, cores=cores, batch_size=batch_size)
+                run_batched(run, self.config.pipeline, cores=cores,
+                            batch_size=batch_size,
+                            detector_configs=detector_configs,
+                            scalar_keys=scalar_keys)
             else:
+                self._load_detector(run)
                 run_pipeline(run, self.config.pipeline)
 
             self.analyzed_runs.append(run)
@@ -87,8 +100,24 @@ class Pipeline:
         for run in self.analyzed_runs:
             for key, value in run.results.items():
                 self.results[f"run_{run.run_number}.{key}"] = value
+            self._collect_run_attributes(run)
 
         self._status_log.append("Pipeline execution complete")
+
+    def _collect_run_attributes(self, run):
+        """Collect pipeline-generated attributes from a run into self.results."""
+        skip = {
+            'spec_experiment', 'run_number', 'run_file', 'status',
+            'status_datetime', 'verbose', 'end_index', 'start_index',
+            'results', 'total_shots', 'run_shots', 'xray', 'laser',
+            'simultaneous', 'h5',
+        }
+        import numpy as np
+        for attr, value in vars(run).items():
+            if attr in skip or attr.startswith('_'):
+                continue
+            if isinstance(value, np.ndarray):
+                self.results[attr] = value
 
     def _create_experiment(self):
         """Create experiment object from config. Wraps the directory lookup failure gracefully."""
@@ -116,8 +145,15 @@ class Pipeline:
             run.results = {}
         return run
 
-    def _load_data(self, run):
-        """Load data keys into the run if the HDF5 file is accessible."""
+    def _load_data(self, run, skip_detector=False):
+        """Load data keys into the run if the HDF5 file is accessible.
+
+        Parameters
+        ----------
+        skip_detector : bool
+            If True, skip loading detector arrays (used when batching will
+            reload per-batch from HDF5 to avoid loading multi-GB arrays).
+        """
         if run.run_file is None or not _file_exists(run.run_file):
             return
 
@@ -128,18 +164,39 @@ class Pipeline:
 
         run.get_run_shot_properties()
 
+        if not skip_detector:
+            for det_config in self.config.data.detector_keys:
+                kwargs = {}
+                if det_config.rois is not None:
+                    kwargs['rois'] = det_config.rois
+                    kwargs['combine'] = det_config.combine_rois
+                run.load_run_key_delayed(
+                    [det_config.hdf5_path],
+                    [det_config.name],
+                    **kwargs,
+                )
+
+            # Close the h5py file handle so the run object is picklable for multiprocessing
+            if hasattr(run, 'h5'):
+                run.h5.close()
+                del run.h5
+
+
+    def _load_detector(self, run):
+        """Load detector data into run (for non-batched path)."""
+        if run.run_file is None or not _file_exists(run.run_file):
+            return
         for det_config in self.config.data.detector_keys:
             kwargs = {}
             if det_config.rois is not None:
                 kwargs['rois'] = det_config.rois
                 kwargs['combine'] = det_config.combine_rois
+            kwargs['transpose'] = det_config.transpose
             run.load_run_key_delayed(
                 [det_config.hdf5_path],
                 [det_config.name],
                 **kwargs,
             )
-
-        # Close the h5py file handle so the run object is picklable for multiprocessing
         if hasattr(run, 'h5'):
             run.h5.close()
             del run.h5

@@ -36,6 +36,7 @@ class DetectorKeyConfig:
     name: str
     rois: list
     combine_rois: bool = True
+    transpose: bool = False
 
 
 @dataclass(frozen=True)
@@ -115,6 +116,7 @@ def _parse_data(raw: dict) -> DataConfig:
                 name=config.get('name', hdf5_path),
                 rois=config.get('rois', None),
                 combine_rois=config.get('combine_rois', True),
+                transpose=config.get('transpose', False),
             ))
 
     return DataConfig(runs=runs, keys=keys, detector_keys=detector_keys)

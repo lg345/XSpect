@@ -13,6 +13,16 @@
 # New pattern:
 #   pipe = Pipeline.from_yaml("mfx101080524_static_xes.yaml")
 #   pipe.run(cores=4, batch_size=500)
+#
+# Matches primary_analysis_static workflow:
+#   1. union_shots(epix, ['xray','xray']) — keep only xray shots
+#   2. filter_detector_adu(epix, 3.0) — zero pixels below threshold
+#   3. hitfinding(epix, cutoff_multiplier=1) — remove low-signal shots
+#   4. reduce_detector_shots(epix, sum) — sum shots → 2D (704 x 200)
+#   5. patch_pixels(epix, axis=0, pixels=[351,352]) — fix bad rows on 2D
+#   6. rotate(epix, -1.0) — rotate 2D image
+#   7. reduce_detector_spatial(epix, rois=[[89,105]]) — ROI on last axis, sum → 1D (704,)
+#   8. make_energy_axis — vonHamos geometry → energy in eV
 
 experiment:
   hutch: mfx
@@ -23,44 +33,57 @@ data:
   runs: [237-239]
   keys:
     ipm_dg2/sum: ipm
+    lightStatus/xray: xray
+    lightStatus/laser: laser
   detector_keys:
     epix_1/ROI_0_area:
       name: epix
       transpose: false
 
 pipeline:
-  # 1. Patch bad pixels on the full detector (dispersion axis = axis 1 for 3D)
-  - step: patch_pixels
+  # 1. Filter to xray-only shots (AND of xray mask with itself = xray mask)
+  - step: union_shots
     on: epix
-    pixels: [351, 352]
-    mode: polynomial
-    axis: 1
+    filter_keys: [xray, xray]
+    new_key: epix
 
-  # 2. Rotate detector images to align crystal axis
-  - step: rotate_detector
-    on: epix
-    angle: -1.0
-
-  # 3. ADU threshold (removes single-photon noise)
+  # 2. ADU threshold (zero pixels below 3.0 ADU)
   - step: filter_detector_adu
     on: epix
     adu_threshold: 3.0
 
-  # 4. Apply ROI and sum across cross-dispersion direction
-  - step: reduce_detector_spatial
+  # 3. Hit finding — remove low-signal shots (median - 1*std threshold)
+  - step: hitfinding
     on: epix
+    cutoff_multiplier: 1.0
+
+  # 4. Sum all shots → 2D image (704 x 200)
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+
+  # 5. Patch bad pixels on 2D summed image (axis 0 = dispersion/rows)
+  - step: patch_pixels
+    on: epix_reduced
+    pixels: [351, 352]
+    mode: polynomial
+    axis: 0
+
+  # 6. Rotate the summed 2D image
+  - step: rotate_detector
+    on: epix_reduced
+    angle: -1.0
+
+  # 7. Apply ROI on last axis (cross-dispersion, 200 px) and sum → 1D spectrum (704,)
+  - step: reduce_detector_spatial
+    on: epix_reduced
     rois: [[89, 105]]
     combine_rois: true
     reduction: sum
 
-  # 5. Sum all shots (static spectrum)
-  - step: reduce_detector_shots
-    on: epix_ROI_1
-    reduction: sum
-
-  # 6. Convert pixel axis to energy (vonHamos geometry for Fe Ka)
+  # 8. Convert pixel axis to energy (vonHamos geometry for Fe Ka)
   - step: make_energy_axis
-    detector_key: epix_ROI_1_reduced
+    detector_key: epix_reduced_ROI_1
     crystal_detector_distance: 42.75
     crystal_radius: 250.0
     d_spacing: 0.981

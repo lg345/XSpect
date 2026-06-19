@@ -139,9 +139,10 @@ def rotate_detector(run, **kwargs):
     if data.ndim == 3 and axes == [0, 1]:
         axes = [1, 2]
 
-    rotated = rotate(data, angle=angle, axes=axes, reshape=False)
+    reshape = kwargs.get("reshape", True)
+    rotated = rotate(data, angle=angle, axes=axes, reshape=reshape)
     setattr(run, detector_key, rotated)
-    run.update_status(f"Rotated {detector_key} by {angle} degrees (axes={axes})")
+    run.update_status(f"Rotated {detector_key} by {angle} degrees (axes={axes}, reshape={reshape})")
 
 
 @register_step("union_shots")
@@ -212,50 +213,57 @@ def separate_shots(run, **kwargs):
 def reduce_detector_spatial(run, **kwargs):
     """Reduce spatial dimension of detector using ROIs.
 
+    For 3D data (shots x rows x cols), the ROI selects along one spatial axis
+    (default: axis 1 = cross-dispersion) and reduces by summing/averaging,
+    producing (shots x remaining_spatial).
+
     Parameters from YAML:
         on: detector key
         rois: list of [start, end] pixel ranges
         combine_rois: bool (default True)
         reduction: "sum" or "mean" (default "sum")
+        axis: which spatial axis to apply ROI on (default 1 for 3D, -1 for 2D)
         purge: bool (default True) - delete original after reduction
     """
     detector_key = kwargs.get("on")
     rois = kwargs.get("rois", [[0, None]])
     combine = kwargs.get("combine_rois", True)
     reduction_name = kwargs.get("reduction", "sum")
+    roi_axis = kwargs.get("axis", None)
     purge = kwargs.get("purge", True)
     if detector_key is None:
         return
 
-    reduction_fn = np.sum if reduction_name == "sum" else np.mean
+    reduction_fn = np.nansum if reduction_name == "sum" else np.nanmean
     detector = getattr(run, detector_key)
 
+    if roi_axis is None:
+        roi_axis = 1 if detector.ndim == 3 else -1
+
+    axis_size = detector.shape[roi_axis]
+
     if combine:
-        mask = np.zeros(detector.shape[-1], dtype=bool)
+        mask = np.zeros(axis_size, dtype=bool)
         for roi in rois:
-            end = roi[1] if roi[1] is not None else detector.shape[-1]
+            end = roi[1] if roi[1] is not None else axis_size
             mask[roi[0]:end] = True
 
-        if detector.ndim == 3:
-            masked_data = detector[:, :, mask]
-        elif detector.ndim == 2:
-            masked_data = detector[:, mask]
-        else:
-            masked_data = detector[mask]
+        idx = [slice(None)] * detector.ndim
+        idx[roi_axis] = mask
+        masked_data = detector[tuple(idx)]
 
-        reduced = reduction_fn(masked_data, axis=-1)
+        reduced = reduction_fn(masked_data, axis=roi_axis)
         setattr(run, f"{detector_key}_ROI_1", reduced)
         run.update_status(f"Spatial reduction: {detector_key} -> {detector_key}_ROI_1")
     else:
-        for idx, roi in enumerate(rois):
-            end = roi[1] if roi[1] is not None else detector.shape[-1]
-            if detector.ndim == 3:
-                chunk = detector[:, :, roi[0]:end]
-            else:
-                chunk = detector[:, roi[0]:end]
-            reduced = reduction_fn(chunk, axis=-1)
-            setattr(run, f"{detector_key}_ROI_{idx+1}", reduced)
-            run.update_status(f"Spatial reduction: {detector_key} -> {detector_key}_ROI_{idx+1}")
+        for roi_idx, roi in enumerate(rois):
+            end = roi[1] if roi[1] is not None else axis_size
+            idx = [slice(None)] * detector.ndim
+            idx[roi_axis] = slice(roi[0], end)
+            chunk = detector[tuple(idx)]
+            reduced = reduction_fn(chunk, axis=roi_axis)
+            setattr(run, f"{detector_key}_ROI_{roi_idx+1}", reduced)
+            run.update_status(f"Spatial reduction: {detector_key} -> {detector_key}_ROI_{roi_idx+1}")
 
     if purge:
         setattr(run, detector_key, None)
@@ -309,7 +317,7 @@ def time_binning(run, **kwargs):
 
     Parameters from YAML:
         bins: list or [min, max, num_points]
-        lxt_key: str (default "lxt_ttc")
+        lxt_key: str or null (default "lxt_ttc"; null means use encoder directly)
         fast_delay_key: str (default "encoder")
         tt_correction_key: str (default "time_tool_correction")
     """
@@ -326,20 +334,26 @@ def time_binning(run, **kwargs):
     else:
         bins = np.array(bins_spec)
 
-    lxt = getattr(run, lxt_key, None)
+    lxt = getattr(run, lxt_key, None) if lxt_key else None
     fast_delay = getattr(run, fast_delay_key, None)
     tt_correction = getattr(run, tt_correction_key, None)
 
-    if lxt is None:
-        run.update_status(f"time_binning: lxt_key '{lxt_key}' not found on run")
+    if lxt is not None:
+        delays = lxt.copy()
+        if fast_delay is not None:
+            if np.mean(np.abs(fast_delay)) > 1e-3:
+                delays = delays + fast_delay
+        if tt_correction is not None:
+            delays = delays + tt_correction
+    elif fast_delay is not None:
+        delays = fast_delay.copy()
+        if tt_correction is not None:
+            delays = delays + tt_correction
+    elif tt_correction is not None:
+        delays = tt_correction.copy()
+    else:
+        run.update_status("time_binning: no timing keys found")
         return
-
-    delays = lxt.copy()
-    if fast_delay is not None:
-        if np.mean(np.abs(fast_delay)) > 1e-3:
-            delays = delays + fast_delay
-    if tt_correction is not None:
-        delays = delays + tt_correction
 
     bin_edges, _ = _center_binning(delays, bins)
     indices = np.digitize(delays, bin_edges)
@@ -423,6 +437,39 @@ def reduce_detector_temporal(run, **kwargs):
     run.update_status(f"Temporal reduction: {detector_key} -> {detector_key}_time_binned ({n_bins} bins)")
 
 
+@register_step("hitfinding")
+def hitfinding(run, **kwargs):
+    """Filter shots by total signal intensity (hit detection).
+
+    Computes per-shot total signal and keeps only shots above a
+    threshold defined as median - cutoff_multiplier * std.
+
+    Parameters from YAML:
+        on: detector key (3D: shots x rows x cols)
+        cutoff_multiplier: std multiplier for threshold (default 1.0)
+    """
+    detector_key = kwargs.get("on")
+    cutoff_multiplier = kwargs.get("cutoff_multiplier", 1.0)
+    if detector_key is None:
+        return
+
+    detector = getattr(run, detector_key, None)
+    if detector is None or detector.ndim < 3:
+        return
+
+    sum_images = np.sum(detector, axis=(1, 2))
+    mean_sum = np.median(sum_images)
+    std_sum = np.std(sum_images)
+    threshold = mean_sum - cutoff_multiplier * std_sum
+    hits = np.where(sum_images > threshold)[0]
+
+    if len(hits) == 0:
+        setattr(run, detector_key, np.zeros((0,) + detector.shape[1:], dtype=detector.dtype))
+    elif len(hits) < detector.shape[0]:
+        setattr(run, detector_key, detector[hits])
+    run.update_status(f"Hitfinding on {detector_key}: {len(hits)}/{detector.shape[0]} shots kept (threshold={threshold:.1f})")
+
+
 @register_step("reduce_detector_shots")
 def reduce_detector_shots(run, **kwargs):
     """Collapse the shot dimension using sum/mean.
@@ -438,7 +485,7 @@ def reduce_detector_shots(run, **kwargs):
     if detector_key is None:
         return
 
-    reduction_fn = np.sum if reduction_name == "sum" else np.mean
+    reduction_fn = np.nansum if reduction_name == "sum" else np.nanmean
     detector = getattr(run, detector_key, None)
     if detector is None:
         return
