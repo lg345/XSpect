@@ -1,0 +1,148 @@
+# Per-shot XES projections for mfx101609126 — DROPLET-RECONSTRUCTED variant.
+#
+# This is the droplet2photon analogue of mfx101609126_pershot_xes.yaml.
+# Instead of loading the pre-processed epix100_*/ROI_area datasets, every
+# detector image is reconstructed on-the-fly from the droplet2photon sparse
+# photon coordinates (droplet_reconstruction step).  Photon-counting
+# reconstruction removes read noise and charge-sharing tails, which should
+# improve the shot-to-shot signal-to-noise used by the stochastic RIXS solver.
+#
+# Three per-shot 1D spectra are produced, all filtered to xray-on shots so the
+# shot index aligns across every array (required by spook):
+#   xrt_hproj       (N_xray, 2048) — incident spectrum (XRT, feespec/hproj)
+#   epix_seer_ROI_1 (N_xray, 768)  — SEER spectrometer (epix100_1), full panel width
+#   epix_spec_ROI_1 (N_xray, 300)  — emission (epix100_0)
+#
+# Stochastic-RIXS comparison (see mfx101609126_spook_rixs.ipynb):
+#   * A = xrt_hproj        — incident monitor #1 (current approach)
+#   * A = epix_seer_ROI_1  — incident monitor #2 (SEER, this is the new option)
+#   * B = epix_spec_ROI_1  — emission
+# Cleaning up the SEER spectrometer (gap-patched, photon-counted) is what lets
+# it stand in as the incident-energy monitor that XRT provides today.
+#
+# KEY DIFFERENCES from the ADU-based mfx101609126_pershot_xes.yaml:
+#   1. No filter_detector_adu step.  Droplet images are PHOTON COUNTS (1,2,3…),
+#      so an ADU threshold of 5 would zero all signal.
+#   2. SEER (epix100_1) is reconstructed with FULL columns (0–768), only the
+#      rows are cropped.  The smalldata ROI col_start was changed 80 -> 0, so the
+#      ROI is now the full panel width and reconstructed column indices equal
+#      full-panel indices — patch_pixels gap columns are given directly in
+#      full-panel coordinates (old ROI-local + 80).
+#   3. SEER gap columns are patched from an explicit manual list (ASIC panel
+#      gaps), not auto_detect.
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101609126
+  lcls_run: 24
+
+data:
+  runs: [78, 79, 80, 81, 82]
+  # max_shots: 500     # uncomment to limit shots for a quick test
+  keys:
+    MfxDg2BmMon/totalIntensityJoules: ipm
+    lightStatus/xray: xray
+    feespec/hproj: xrt_hproj
+  # No detector_keys — epix images come from the droplet_reconstruction step.
+
+pipeline:
+  # 1. Reconstruct per-shot images from the droplet2photon sparse arrays.
+  #    epix100_0 (spectroscopy / emission): crop to the ROI_area window
+  #      rows 270-330, cols 400-700  ->  (60, 300)
+  - step: droplet_reconstruction
+    det: epix100_0
+    new_key: epix_spec
+    roi: [270, 330, 400, 700]
+
+  #    epix100_1 (SEER / incident monitor): match the SMALLDATA ROI window
+  #      rows 350-450, cols 0-768  ->  (100, 768)
+  #    This ROI comes from UserDataCfg/epix100_1/ROI__ROI_ROI = [350 450 0 768]
+  #    (col_start was changed 80 -> 0, so the ROI is now the full panel width).
+  #    The droplet2photon sparse coordinates are stored in FULL-PANEL coordinates
+  #    (col 0-767), so with col_start=0 the reconstructed column index EQUALS the
+  #    full-panel column index and the patch_pixels gap columns below are given in
+  #    full-panel coordinates directly (old ROI-local indices + 80).
+  - step: droplet_reconstruction
+    det: epix100_1
+    new_key: epix_seer
+    roi: [350, 450, 0, 768]
+
+  # 2. Filter all arrays to xray-on shots so A and B share the same shot index
+  - step: union_shots
+    on: xrt_hproj
+    filter_keys: [xray, xray]
+    new_key: xrt_hproj
+
+  - step: union_shots
+    on: ipm
+    filter_keys: [xray, xray]
+    new_key: ipm
+
+  - step: union_shots
+    on: epix_spec
+    filter_keys: [xray, xray]
+    new_key: epix_spec
+
+  - step: union_shots
+    on: epix_seer
+    filter_keys: [xray, xray]
+    new_key: epix_seer
+
+  # 3. Patch ASIC panel-gap columns.
+  #    epix100_0 (ROI-cropped 300-col frame): same gap columns as the
+  #    ADU pipeline (cols are local to the 400-700 ROI window).
+  - step: patch_pixels
+    on: epix_spec
+    pixels: [80, 81, 82, 176, 177, 178, 272, 273, 274]
+    mode: polynomial
+    deg: 2
+
+  #    epix100_1 SEER (768-col full-panel frame, cols 0-768): gap columns are
+  #    now FULL-PANEL indices (= old ROI-local indices + 80, since the smalldata
+  #    ROI col_start moved 80 -> 0).  These are the ASIC tile-boundary gaps: a
+  #    dark center column flanked by bright charge-sharing neighbors (verified
+  #    against the reconstructed mean: dips at full-panel 95,191,287,381,...).
+  - step: patch_pixels
+    on: epix_seer
+    pixels: [94, 95, 96, 190, 191, 192, 286, 287, 288,
+             381, 382, 383, 384, 477, 478, 479, 480,
+             574, 575, 576, 634, 635, 636]
+    mode: polynomial
+    deg: 2
+
+  # 4. Rotate to align dispersion axis with detector columns
+  #    Fixed angles from mfx101609126_rotation_diagnostic.ipynb:
+  #      epix100_0 (spectroscopy): -2.0 deg
+  #      epix100_1 (SEER):         -1.6 deg
+  - step: rotate_detector
+    on: epix_spec
+    angle: -2.0
+    reshape: false
+
+  - step: rotate_detector
+    on: epix_seer
+    angle: -1.6
+    reshape: false
+
+  # 5. Project signal rows onto X -> per-shot 1D spectrum (N_xray, n_cols)
+  #    epix_spec: local rows 10-40  (full panel rows 280-310)
+  #    epix_seer: local rows 50-90  (full panel rows 400-440)
+  - step: reduce_detector_spatial
+    on: epix_spec
+    axis: 1
+    rois: [[10, 40]]
+    combine_rois: true
+    reduction: sum
+    purge: true
+
+  - step: reduce_detector_spatial
+    on: epix_seer
+    axis: 1
+    rois: [[50, 90]]
+    combine_rois: true
+    reduction: sum
+    purge: true
+
+output:
+  format: hdf5
+  path: ./results/mfx101609126_droplet_pershot_xes/

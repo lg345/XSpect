@@ -1,0 +1,85 @@
+# Static RIXS plane for mfx101609126
+# Run 97: DCCM energy scan with 2D epix images (emission spectra)
+# Incident energy from DCCM, emission energy from vonHamos spectrometer
+#
+# Workflow:
+#   1. union_shots — keep only xray shots
+#   2. filter_detector_adu — zero pixels below ADU threshold
+#   3. make_ccm_axis — define incident energy bins from DCCM readback
+#   4. ccm_binning — digitize shots into incident energy bins
+#   5. reduce_detector_ccm (ipm) — sum IPM per energy bin → normalization denominator
+#   6. reduce_detector_ccm (epix) — sum 2D images at each incident energy point
+#   7. reduce_detector_shots — total sum of all xray frames → 2D diagnostic image
+#   8. reduce_detector_spatial — ROI + sum cross-dispersion → 1D per energy
+#
+# Result: 2D RIXS plane (incident energy x emission pixels)
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101609126
+  lcls_run: 24
+
+data:
+  runs: [97]
+  keys:
+    MfxDg2BmMon/totalIntensityJoules: ipm
+    lightStatus/xray: xray
+    epicsUser/dccm_E_setpoint: ccm
+  detector_keys:
+    epix100_0/ROI_area:
+      name: epix
+      transpose: false
+
+pipeline:
+  # 1. Filter to xray-only shots
+  - step: union_shots
+    on: epix
+    filter_keys: [xray, xray]
+    new_key: epix
+
+  # 2. ADU threshold (remove pixels below 2 keV)
+  - step: filter_detector_adu
+    on: epix
+    adu_threshold: 2.0
+
+  # 3. Define incident energy axis from DCCM setpoints
+  - step: make_ccm_axis
+    energies: auto
+    ccm_key: ccm
+    resolution: 0.00025
+
+  # 4. Digitize shots into DCCM energy bins
+  - step: ccm_binning
+    ccm_key: ccm
+    ccm_bins_key: ccm_bins
+
+  # 5. Sum IPM per incident energy bin → (n_energy,) normalization denominator
+  - step: reduce_detector_ccm
+    on: ipm
+    ccm_bin_key: ccm_bin_indices
+    average: false
+
+  # 6. Sum 2D images at each incident energy → (n_energy x 60 x 300)
+  #    (detector is already ROI-cropped to 60 rows x 300 cols in smalldata)
+  - step: reduce_detector_ccm
+    on: epix
+    ccm_bin_key: ccm_bin_indices
+    average: false
+
+  # 7. Total sum of all ADU-filtered xray frames → (60 x 300) diagnostic image
+  #    Used to inspect signal distribution before choosing the spatial ROI.
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+    purge: true
+
+  # 8. Sum cross-dispersion axis (all 60 rows) → (n_energy x 300) RIXS plane
+  - step: reduce_detector_spatial
+    on: epix_energy_binned
+    rois: [[0, 60]]
+    combine_rois: true
+    reduction: sum
+
+output:
+  format: hdf5
+  path: ./results/mfx101609126_static_rixs/
