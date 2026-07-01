@@ -1,0 +1,95 @@
+# Ultrafast Fe K-edge XAS analysis for xcs101591326
+# Run 70: DCCM energy scan (7095–7132 eV, 97 points)
+# Fluorescence-detected XAS using ipm4 (I0) and epix_2/ROI_sum (If)
+#
+# Workflow:
+#   1. filter_shots — remove low-intensity shots (bad I0)
+#   2. make_ccm_axis — define energy bins matching DCCM scan range
+#   3. ccm_binning — digitize shots into energy bins using DCCM readback
+#   4. union/separate_shots — split by laser status (pumped vs unpumped)
+#   5. reduce_detector_ccm — bin I0 and If along energy axis
+#
+# The DCCM energy is read from epicsUser/dccm_E (in keV).
+# XAS signal: mu ∝ If/I0 (fluorescence yield).
+
+experiment:
+  hutch: xcs
+  experiment_id: xcs101591326
+  lcls_run: 26
+
+data:
+  runs: ["187-216"]
+  keys:
+    ipm4/sum: ipm
+    epix_2/ROI_sum: epix
+    epicsUser/dccm_E_setpoint: ccm
+    enc/lasDelay: encoder
+    tt/ttCorr: time_tool_correction
+    lightStatus/xray: xray
+    evr/code_41: laser
+  detector_keys: {}
+
+pipeline:
+  # 1. Filter shots on upstream I0 intensity
+  - step: filter_shots
+    on: simultaneous
+    filter_key: ipm
+    threshold: 50
+
+  # 2. Define energy axis dynamically from CCM setpoints (0.25 eV resolution)
+  - step: make_ccm_axis
+    energies: auto
+    ccm_key: ccm
+    resolution: 0.00025
+
+  # 3. Digitize shots into CCM energy bins
+  - step: ccm_binning
+    ccm_key: ccm
+    ccm_bins_key: ccm_bins
+
+  # 4. Split shot masks by laser status
+  - step: union_shots
+    on: ipm
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: ipm
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: epix
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: epix
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: ccm_bin_indices
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: ccm_bin_indices
+    filter_keys: [xray, laser]
+
+  # 5. Bin I0 (ipm) along energy axis — laser-on and laser-off
+  - step: reduce_detector_ccm
+    on: ipm_simultaneous_laser
+    ccm_bin_key: ccm_bin_indices_simultaneous_laser
+
+  - step: reduce_detector_ccm
+    on: ipm_xray_not_laser
+    ccm_bin_key: ccm_bin_indices_xray_not_laser
+
+  # 6. Bin If (fluorescence) along energy axis — laser-on and laser-off
+  - step: reduce_detector_ccm
+    on: epix_simultaneous_laser
+    ccm_bin_key: ccm_bin_indices_simultaneous_laser
+
+  - step: reduce_detector_ccm
+    on: epix_xray_not_laser
+    ccm_bin_key: ccm_bin_indices_xray_not_laser
+
+output:
+  format: hdf5
+  path: ./results/xcs101591326_ultrafast_xas/
