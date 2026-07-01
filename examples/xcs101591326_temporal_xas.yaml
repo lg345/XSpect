@@ -1,0 +1,94 @@
+# Temporal XAS analysis for xcs101591326
+# Run 101: lxt_fast time-delay scan at fixed DCCM energy (7126.5 eV)
+# Fluorescence-detected XAS using ipm5 (I0) and epix_2/ROI_sum (If)
+#
+# Workflow:
+#   1. filter_shots — remove low-intensity shots (bad I0)
+#   2. time_binning — bin shots by enc/lasDelay (1 ps bins, -40 to 100 ps)
+#   3. union/separate_shots — split by laser status (pumped vs unpumped)
+#   4. reduce_detector_temporal — bin I0 and If along time axis
+#
+# enc/lasDelay is in picoseconds.
+# XAS signal: mu ∝ If/I0 (fluorescence yield) vs time delay.
+
+experiment:
+  hutch: xcs
+  experiment_id: xcs101591326
+  lcls_run: 26
+
+data:
+  runs: [339,340,341,342,343,344,347]
+  keys:
+    ipm5/sum: ipm
+    epix_2/ROI_sum: epix
+    enc/lasDelay: encoder
+    lightStatus/xray: xray
+    evr/code_41: laser
+  detector_keys: {}
+
+pipeline:
+  # 1. Filter shots on upstream I0 intensity
+  - step: filter_shots
+    on: simultaneous
+    filter_key: ipm
+    threshold: 500
+
+  # 2. Time binning from lxt_fast (enc/lasDelay in ps) — 1 ps bins
+  - step: time_binning
+    bins: [-10, 25, 35]
+    lxt_key: null
+    fast_delay_key: encoder
+    tt_correction_key: null
+
+  # 3. Split shot masks by laser status
+  - step: union_shots
+    on: ipm
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: ipm
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: epix
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: epix
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: timing_bin_indices
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: timing_bin_indices
+    filter_keys: [xray, laser]
+
+  # 4. Bin I0 (ipm) along time axis — laser-on and laser-off
+  - step: reduce_detector_temporal
+    on: ipm_simultaneous_laser
+    timing_bin_key: timing_bin_indices_simultaneous_laser
+
+  - step: reduce_detector_temporal
+    on: ipm_xray_not_laser
+    timing_bin_key: timing_bin_indices_xray_not_laser
+
+  # 5. Bin If (fluorescence) along time axis — laser-on and laser-off
+  - step: reduce_detector_temporal
+    on: epix_simultaneous_laser
+    timing_bin_key: timing_bin_indices_simultaneous_laser
+
+  - step: reduce_detector_temporal
+    on: epix_xray_not_laser
+    timing_bin_key: timing_bin_indices_xray_not_laser
+
+reduction:
+  - step: combine_runs
+    detector_key: epix
+  - step: combine_runs
+    detector_key: ipm
+
+output:
+  format: hdf5
+  path: ./results/xcs101591326_temporal_xas/

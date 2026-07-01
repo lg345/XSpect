@@ -70,21 +70,33 @@ class Pipeline:
             (dc.hdf5_path, dc.name, dc.transpose)
             for dc in self.config.data.detector_keys
         ]
-        scalar_keys = [
-            (dk.hdf5_path, dk.friendly_name)
-            for dk in self.config.data.keys
-        ]
+        scalar_keys = [(dk.hdf5_path, dk.friendly_name) for dk in self.config.data.keys]
 
         for run_number in self.config.data.runs:
             self._status_log.append(f"Processing run {run_number}")
             run = self._create_run(exp, run_number)
             self._load_data(run, skip_detector=True)
 
-            if hasattr(run, 'total_shots') and run.total_shots > batch_size:
-                run_batched(run, self.config.pipeline, cores=cores,
-                            batch_size=batch_size,
-                            detector_configs=detector_configs,
-                            scalar_keys=scalar_keys)
+            if hasattr(run, "total_shots") and run.total_shots > batch_size:
+                # Pre-run the pipeline on the parent run (no detector loaded).
+                # Detector-dependent steps return gracefully; scalar-only steps
+                # (e.g. make_ccm_axis, ccm_binning, time_binning) fire here and
+                # produce a globally consistent axis.  The resulting attributes
+                # are then injected into every batch so each batch shares the
+                # same ccm_bins / ccm_energies / time_bins instead of deriving
+                # its own from an incomplete slice of the data.
+                run_pipeline(run, self.config.pipeline)
+                precomputed_attrs = self._collect_scalar_precomputed(run)
+
+                run_batched(
+                    run,
+                    self.config.pipeline,
+                    cores=cores,
+                    batch_size=batch_size,
+                    detector_configs=detector_configs,
+                    scalar_keys=scalar_keys,
+                    precomputed_attrs=precomputed_attrs,
+                )
             else:
                 self._load_detector(run)
                 run_pipeline(run, self.config.pipeline)
@@ -94,7 +106,9 @@ class Pipeline:
 
         if self.config.reduction:
             self._status_log.append("Running reduction steps")
-            reduction_results = run_reductions(self.analyzed_runs, self.config.reduction)
+            reduction_results = run_reductions(
+                self.analyzed_runs, self.config.reduction
+            )
             self.results.update(reduction_results)
 
         for run in self.analyzed_runs:
@@ -104,17 +118,81 @@ class Pipeline:
 
         self._status_log.append("Pipeline execution complete")
 
+    def _collect_scalar_precomputed(self, run) -> dict:
+        """Collect scalar-derived attributes set during the pre-pipeline run.
+
+        Returns attributes that are either non-array scalars or small arrays
+        whose first dimension does NOT equal total_shots (i.e. axis/bin arrays
+        like ccm_bins, ccm_energies, time_bins), plus per-shot arrays that
+        should be sliced per-batch (ccm_bin_indices, timing_bin_indices).
+
+        These are later injected into each batch so that axis steps (make_ccm_axis,
+        time_binning) see a pre-populated result and skip re-derivation.
+
+        Raw input data keys (scalar_keys and detector_keys) are excluded: they
+        are reloaded fresh from HDF5 in each batch worker and must not be
+        overwritten by a pre-pipeline-mutated (e.g. union_shots-filtered) copy.
+        """
+        import numpy as np
+
+        # Names that will be reloaded per-batch from HDF5 — never inject these.
+        input_names = {dk.friendly_name for dk in self.config.data.keys}
+        input_names |= {dc.name for dc in self.config.data.detector_keys}
+
+        skip = {
+            "spec_experiment",
+            "run_number",
+            "run_file",
+            "status",
+            "status_datetime",
+            "verbose",
+            "end_index",
+            "start_index",
+            "results",
+            "total_shots",
+            "run_shots",
+            "xray",
+            "laser",
+            "simultaneous",
+            "h5",
+        } | input_names
+
+        total = getattr(run, "total_shots", None)
+        attrs = {}
+        for attr, value in vars(run).items():
+            if attr in skip or attr.startswith("_"):
+                continue
+            if isinstance(value, np.ndarray):
+                attrs[attr] = value
+            elif not isinstance(value, np.ndarray) and value is not None:
+                # Skip non-array objects (h5 handles, etc.) but keep scalars
+                if isinstance(value, (int, float, bool, str)):
+                    attrs[attr] = value
+        return attrs
+
     def _collect_run_attributes(self, run):
         """Collect pipeline-generated attributes from a run into self.results."""
         skip = {
-            'spec_experiment', 'run_number', 'run_file', 'status',
-            'status_datetime', 'verbose', 'end_index', 'start_index',
-            'results', 'total_shots', 'run_shots', 'xray', 'laser',
-            'simultaneous', 'h5',
+            "spec_experiment",
+            "run_number",
+            "run_file",
+            "status",
+            "status_datetime",
+            "verbose",
+            "end_index",
+            "start_index",
+            "results",
+            "total_shots",
+            "run_shots",
+            "xray",
+            "laser",
+            "simultaneous",
+            "h5",
         }
         import numpy as np
+
         for attr, value in vars(run).items():
-            if attr in skip or attr.startswith('_'):
+            if attr in skip or attr.startswith("_"):
                 continue
             if isinstance(value, np.ndarray):
                 self.results[attr] = value
@@ -130,8 +208,10 @@ class Pipeline:
 
     def _create_run(self, exp, run_number: int):
         """Create a spectroscopy_run for the given run number."""
+        max_shots = self.config.data.max_shots
+        end_index = max_shots if max_shots is not None else -1
         try:
-            run = spectroscopy_run(exp, run_number)
+            run = spectroscopy_run(exp, run_number, end_index=end_index)
         except Exception:
             run = spectroscopy_run.__new__(spectroscopy_run)
             run.spec_experiment = exp
@@ -140,7 +220,7 @@ class Pipeline:
             run.status = []
             run.status_datetime = []
             run.verbose = False
-            run.end_index = -1
+            run.end_index = end_index
             run.start_index = 0
             run.results = {}
         return run
@@ -168,8 +248,8 @@ class Pipeline:
             for det_config in self.config.data.detector_keys:
                 kwargs = {}
                 if det_config.rois is not None:
-                    kwargs['rois'] = det_config.rois
-                    kwargs['combine'] = det_config.combine_rois
+                    kwargs["rois"] = det_config.rois
+                    kwargs["combine"] = det_config.combine_rois
                 run.load_run_key_delayed(
                     [det_config.hdf5_path],
                     [det_config.name],
@@ -177,10 +257,9 @@ class Pipeline:
                 )
 
             # Close the h5py file handle so the run object is picklable for multiprocessing
-            if hasattr(run, 'h5'):
+            if hasattr(run, "h5"):
                 run.h5.close()
                 del run.h5
-
 
     def _load_detector(self, run):
         """Load detector data into run (for non-batched path)."""
@@ -189,15 +268,15 @@ class Pipeline:
         for det_config in self.config.data.detector_keys:
             kwargs = {}
             if det_config.rois is not None:
-                kwargs['rois'] = det_config.rois
-                kwargs['combine'] = det_config.combine_rois
-            kwargs['transpose'] = det_config.transpose
+                kwargs["rois"] = det_config.rois
+                kwargs["combine"] = det_config.combine_rois
+            kwargs["transpose"] = det_config.transpose
             run.load_run_key_delayed(
                 [det_config.hdf5_path],
                 [det_config.name],
                 **kwargs,
             )
-        if hasattr(run, 'h5'):
+        if hasattr(run, "h5"):
             run.h5.close()
             del run.h5
 
@@ -215,4 +294,5 @@ class _MockExperiment:
 def _file_exists(path: str) -> bool:
     """Check if a file exists without importing os at module level."""
     from pathlib import Path
+
     return Path(path).exists()

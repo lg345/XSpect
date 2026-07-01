@@ -16,11 +16,27 @@ from XSpect.controller.pipeline_runner import run_pipeline
 
 
 # Attributes that are part of the run's infrastructure (not step outputs)
-_INFRASTRUCTURE_ATTRS = frozenset({
-    'spec_experiment', 'run_number', 'run_file', 'status', 'status_datetime',
-    'verbose', 'end_index', 'start_index', 'results', 'total_shots',
-    'run_shots', 'xray', 'laser', 'simultaneous', 'h5',
-})
+_INFRASTRUCTURE_ATTRS = frozenset(
+    {
+        "spec_experiment",
+        "run_number",
+        "run_file",
+        "status",
+        "status_datetime",
+        "verbose",
+        "end_index",
+        "start_index",
+        "abs_start_index",
+        "abs_end_index",
+        "results",
+        "total_shots",
+        "run_shots",
+        "xray",
+        "laser",
+        "simultaneous",
+        "h5",
+    }
+)
 
 
 def split_into_batches(total_shots: int, batch_size: int) -> list[tuple[int, int]]:
@@ -67,7 +83,7 @@ def _collect_batch_attrs(batch_run, pre_attrs):
 
 def _slice_arrays_for_batch(batch_run, start, end):
     """Slice multi-shot arrays on a batch run to the batch's shot range."""
-    total = getattr(batch_run, 'total_shots', None)
+    total = getattr(batch_run, "total_shots", None)
     if total is None:
         return
     for attr in list(vars(batch_run)):
@@ -80,8 +96,8 @@ def _slice_arrays_for_batch(batch_run, start, end):
 
 def _derive_shot_masks(batch_run):
     """Derive xray/laser/simultaneous masks if lightStatus keys were loaded."""
-    xray = getattr(batch_run, 'xray', None)
-    laser = getattr(batch_run, 'laser', None)
+    xray = getattr(batch_run, "xray", None)
+    laser = getattr(batch_run, "laser", None)
     if xray is not None and laser is not None:
         batch_run.xray = xray.astype(bool)
         batch_run.laser = laser.astype(bool)
@@ -90,26 +106,32 @@ def _derive_shot_masks(batch_run):
 
 def _slice_shot_masks(batch_run, start, end, parent_run):
     """Slice shot masks and scalar keys from the parent run to the batch range."""
-    parent_total = getattr(parent_run, 'total_shots', None)
+    parent_total = getattr(parent_run, "total_shots", None)
     if parent_total is None:
         return
     for attr in list(vars(batch_run)):
         if attr in _INFRASTRUCTURE_ATTRS:
             continue
         val = getattr(batch_run, attr, None)
-        if isinstance(val, np.ndarray) and val.ndim >= 1 and val.shape[0] == parent_total:
+        if (
+            isinstance(val, np.ndarray)
+            and val.ndim >= 1
+            and val.shape[0] == parent_total
+        ):
             setattr(batch_run, attr, val[start:end].copy())
-    for attr in ('xray', 'laser', 'simultaneous'):
+    for attr in ("xray", "laser", "simultaneous"):
         parent_val = getattr(parent_run, attr, None)
         if parent_val is not None and isinstance(parent_val, np.ndarray):
             setattr(batch_run, attr, parent_val[start:end].copy())
 
 
-def _load_batch_from_hdf5(batch_run, run_file, abs_start, abs_end,
-                          detector_configs, scalar_keys):
+def _load_batch_from_hdf5(
+    batch_run, run_file, abs_start, abs_end, detector_configs, scalar_keys
+):
     """Load batch data slice directly from HDF5."""
     import h5py
-    with h5py.File(run_file, 'r') as fh:
+
+    with h5py.File(run_file, "r") as fh:
         for key, name in scalar_keys:
             try:
                 setattr(batch_run, name, np.array(fh[key][abs_start:abs_end]))
@@ -129,17 +151,49 @@ def _load_batch_from_hdf5(batch_run, run_file, abs_start, abs_end,
 def _make_batch_run(run, start, end):
     """Create a lightweight batch run object."""
     batch_run = copy.copy(run)
+    parent_start = getattr(run, "start_index", 0)
     batch_run.start_index = 0
     batch_run.end_index = end - start
     batch_run.total_shots = end - start
+    # Absolute HDF5 indices: used by steps that read directly from the source
+    # file (e.g. droplet_reconstruction) and need to know which rows to access.
+    batch_run.abs_start_index = parent_start + start
+    batch_run.abs_end_index = parent_start + end
     batch_run.results = {}
     batch_run.status = []
     batch_run.status_datetime = []
     return batch_run
 
 
-def _process_batch_sequential(batch_range, run, steps, detector_configs=None,
-                              scalar_keys=None):
+def _inject_precomputed(batch_run, precomputed_attrs, start, end, total_shots):
+    """Inject precomputed scalar/axis attributes into a batch run.
+
+    Static attributes (e.g. ccm_bins, ccm_energies, time_bins) are copied
+    directly.  Per-shot arrays (shape[0] == total_shots) are sliced to the
+    batch range so that binning steps (ccm_binning, time_binning) receive the
+    correct per-batch indices rather than recomputing them from incomplete data.
+    """
+    if not precomputed_attrs:
+        return
+    for attr, value in precomputed_attrs.items():
+        if (
+            isinstance(value, np.ndarray)
+            and value.ndim >= 1
+            and value.shape[0] == total_shots
+        ):
+            setattr(batch_run, attr, value[start:end].copy())
+        else:
+            setattr(batch_run, attr, value)
+
+
+def _process_batch_sequential(
+    batch_range,
+    run,
+    steps,
+    detector_configs=None,
+    scalar_keys=None,
+    precomputed_attrs=None,
+):
     """
     Process a single batch sequentially (in-process).
 
@@ -149,7 +203,7 @@ def _process_batch_sequential(batch_range, run, steps, detector_configs=None,
     start, end = batch_range
     batch_run = _make_batch_run(run, start, end)
 
-    run_file = getattr(run, 'run_file', None)
+    run_file = getattr(run, "run_file", None)
     has_preloaded = any(
         isinstance(getattr(run, attr, None), np.ndarray)
         and getattr(run, attr).ndim >= 2
@@ -160,23 +214,40 @@ def _process_batch_sequential(batch_range, run, steps, detector_configs=None,
     if has_preloaded:
         _slice_arrays_for_batch(batch_run, start, end)
     elif run_file and detector_configs:
-        abs_start = getattr(run, 'start_index', 0) + start
-        abs_end = getattr(run, 'start_index', 0) + end
-        _load_batch_from_hdf5(batch_run, run_file, abs_start, abs_end,
-                              detector_configs, scalar_keys or [])
+        abs_start = getattr(run, "start_index", 0) + start
+        abs_end = getattr(run, "start_index", 0) + end
+        _load_batch_from_hdf5(
+            batch_run, run_file, abs_start, abs_end, detector_configs, scalar_keys or []
+        )
 
     _slice_shot_masks(batch_run, start, end, run)
+
+    parent_total = getattr(run, "total_shots", None)
+    if precomputed_attrs and parent_total is not None:
+        _inject_precomputed(batch_run, precomputed_attrs, start, end, parent_total)
 
     pre_attrs = set(vars(batch_run).keys())
     run_pipeline(batch_run, steps)
     return _collect_batch_attrs(batch_run, pre_attrs)
 
 
-def _process_batch_parallel(batch_range, run_file, start_index, detector_configs,
-                            scalar_keys, steps):
+def _process_batch_parallel(
+    batch_range,
+    run_file,
+    start_index,
+    detector_configs,
+    scalar_keys,
+    steps,
+    precomputed_attrs=None,
+    parent_total_shots=None,
+):
     """
     Process a single batch in a worker process by reloading from HDF5.
     Avoids pickling large arrays across processes.
+
+    precomputed_attrs, if provided, are injected before the pipeline runs so
+    that axis steps (make_ccm_axis, time_binning) see a globally consistent
+    axis and skip re-derivation.
     """
     from XSpect.model.run import spectroscopy_run
 
@@ -189,16 +260,24 @@ def _process_batch_parallel(batch_range, run_file, start_index, detector_configs
     batch_run.run_number = 0
     batch_run.start_index = 0
     batch_run.end_index = end - start
+    batch_run.abs_start_index = abs_start
+    batch_run.abs_end_index = abs_end
     batch_run.results = {}
     batch_run.status = []
     batch_run.status_datetime = []
     batch_run.verbose = False
     batch_run.total_shots = end - start
 
-    _load_batch_from_hdf5(batch_run, run_file, abs_start, abs_end,
-                          detector_configs, scalar_keys)
+    _load_batch_from_hdf5(
+        batch_run, run_file, abs_start, abs_end, detector_configs, scalar_keys
+    )
 
     _derive_shot_masks(batch_run)
+
+    if precomputed_attrs and parent_total_shots is not None:
+        _inject_precomputed(
+            batch_run, precomputed_attrs, start, end, parent_total_shots
+        )
 
     pre_attrs = set(vars(batch_run).keys())
     run_pipeline(batch_run, steps)
@@ -243,7 +322,13 @@ def reconverge_results(batch_results: list[dict]) -> dict:
 
         first = values[0]
         if isinstance(first, np.ndarray):
-            if 'energy' in key or 'axis' in key or 'bins' in key or 'delays' in key:
+            if (
+                key in ("ccm_energies", "ccm_bins", "time_bins", "time_delays")
+                or key.endswith("_energy")
+                or key.endswith("_axis")
+                or key.endswith("_bins")
+                or key.endswith("_delays")
+            ):
                 merged[key] = first
             else:
                 shapes = [v.shape for v in values]
@@ -255,15 +340,27 @@ def reconverge_results(batch_results: list[dict]) -> dict:
                     except ValueError:
                         merged[key] = values[-1]
         elif isinstance(first, (int, float)):
-            merged[key] = sum(values)
+            # Per-detector geometry scalars (angles, etc.) are identical across
+            # batches — take the mean rather than summing.
+            if key.endswith("_angle"):
+                merged[key] = float(np.mean(values))
+            else:
+                merged[key] = sum(values)
         else:
             merged[key] = values[-1]
 
     return merged
 
 
-def run_batched(run, pipeline_steps: list[StepConfig], cores: int = 1, batch_size: int = 2000,
-                detector_configs=None, scalar_keys=None) -> None:
+def run_batched(
+    run,
+    pipeline_steps: list[StepConfig],
+    cores: int = 1,
+    batch_size: int = 2000,
+    detector_configs=None,
+    scalar_keys=None,
+    precomputed_attrs=None,
+) -> None:
     """
     Execute pipeline steps on a run with optional batch parallelism.
 
@@ -288,8 +385,12 @@ def run_batched(run, pipeline_steps: list[StepConfig], cores: int = 1, batch_siz
         [(hdf5_path, name, transpose), ...] for parallel reloading.
     scalar_keys : list of tuples, optional
         [(hdf5_path, friendly_name), ...] for parallel reloading.
+    precomputed_attrs : dict, optional
+        Scalar/axis attributes pre-computed on the full run (e.g. ccm_bins,
+        ccm_energies, ccm_bin_indices).  Static attributes are copied directly
+        into each batch; per-shot arrays (shape[0] == total_shots) are sliced.
     """
-    total_shots = getattr(run, 'total_shots', None)
+    total_shots = getattr(run, "total_shots", None)
     if total_shots is None:
         run_pipeline(run, pipeline_steps)
         return
@@ -302,17 +403,27 @@ def run_batched(run, pipeline_steps: list[StepConfig], cores: int = 1, batch_siz
     if cores <= 1 or len(batches) == 1:
         batch_results = []
         for batch_range in batches:
-            result = _process_batch_sequential(batch_range, run, pipeline_steps,
-                                              detector_configs=detector_configs,
-                                              scalar_keys=scalar_keys)
+            result = _process_batch_sequential(
+                batch_range,
+                run,
+                pipeline_steps,
+                detector_configs=detector_configs,
+                scalar_keys=scalar_keys,
+                precomputed_attrs=precomputed_attrs,
+            )
             batch_results.append(result)
     else:
-        run_file = getattr(run, 'run_file', None)
-        start_index = getattr(run, 'start_index', 0)
+        run_file = getattr(run, "run_file", None)
+        start_index = getattr(run, "start_index", 0)
         if run_file is None:
             batch_results = []
             for batch_range in batches:
-                result = _process_batch_sequential(batch_range, run, pipeline_steps)
+                result = _process_batch_sequential(
+                    batch_range,
+                    run,
+                    pipeline_steps,
+                    precomputed_attrs=precomputed_attrs,
+                )
                 batch_results.append(result)
         else:
             if detector_configs is None:
@@ -326,6 +437,8 @@ def run_batched(run, pipeline_steps: list[StepConfig], cores: int = 1, batch_siz
                 detector_configs=detector_configs,
                 scalar_keys=scalar_keys,
                 steps=pipeline_steps,
+                precomputed_attrs=precomputed_attrs,
+                parent_total_shots=total_shots,
             )
             with Pool(processes=cores) as pool:
                 batch_results = pool.map(process_fn, batches)

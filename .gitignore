@@ -11,3 +11,6 @@ __pycache__/
 
 # Coverage
 .coverage
+
+# Pipeline output data (HDF5 results, large arrays)
+examples/results/

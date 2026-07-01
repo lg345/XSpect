@@ -1,0 +1,89 @@
+# SEER vs XRT spatial projections for mfx101609126
+# Runs 78-82: both spectrometers active
+#   XRT spectrometer  — epix100_0/ROI_area  (60 rows × 300 cols)
+#   SEER spectrometer — epix100_1/ROI_area  (assumed same format)
+#
+# Workflow (applied to each detector independently):
+#   1. union_shots — keep only xray-on shots
+#   2. filter_detector_adu — zero pixels below ADU threshold
+#   3. reduce_detector_shots — sum all shots → 2D image (60 × 300)
+#   4. reduce_detector_spatial — sum cross-dispersion rows → 1D spectrum (300 px)
+#
+# Results:
+#   epix_xrt_reduced        : 2D summed XRT image  (60 × 300)
+#   epix_xrt_reduced_ROI_1  : 1D XRT spectrum      (300,)
+#   epix_seer_reduced       : 2D summed SEER image  (60 × 300)
+#   epix_seer_reduced_ROI_1 : 1D SEER spectrum      (300,)
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101609126
+  lcls_run: 24
+
+data:
+  runs: [78, 79, 80, 81, 82]
+  #runs: [79]
+  keys:
+    MfxDg2BmMon/totalIntensityJoules: ipm
+    lightStatus/xray: xray
+  detector_keys:
+    epix100_0/ROI_area:
+      name: epix_xrt
+      transpose: false
+    epix100_1/ROI_area:
+      name: epix_seer
+      transpose: false
+
+pipeline:
+  # 1. Filter to xray-only shots
+  - step: union_shots
+    on: epix_xrt
+    filter_keys: [xray, xray]
+    new_key: epix_xrt
+
+  - step: union_shots
+    on: epix_seer
+    filter_keys: [xray, xray]
+    new_key: epix_seer
+
+  # 2. ADU threshold
+  - step: filter_detector_adu
+    on: epix_xrt
+    adu_threshold: 2.0
+
+  - step: filter_detector_adu
+    on: epix_seer
+    adu_threshold: 2.0
+
+  # 3. Sum all xray shots → 2D image (60 × 300)
+  - step: reduce_detector_shots
+    on: epix_xrt
+    reduction: sum
+    purge: true
+
+  - step: reduce_detector_shots
+    on: epix_seer
+    reduction: sum
+    purge: true
+
+  # 4. Sum cross-dispersion rows (axis 0, all 60 rows) → 1D spectrum (300,)
+  #    purge: false keeps the 2D summed image for diagnostic display
+  - step: reduce_detector_spatial
+    on: epix_xrt_reduced
+    axis: 0
+    rois: [[0, 60]]
+    combine_rois: true
+    reduction: sum
+    purge: false
+
+  - step: reduce_detector_spatial
+    on: epix_seer_reduced
+    axis: 0
+    rois: [[0, 60]]
+    combine_rois: true
+    reduction: sum
+    purge: false
+
+output:
+  format: hdf5
+  path: ./results/mfx101609126_seer_xrt/
