@@ -9,11 +9,17 @@ import yaml
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from XSpect.analysis.registry import get_step, get_reduction, StepNotFoundError, ReductionNotFoundError
+from XSpect.analysis.registry import (
+    get_step,
+    get_reduction,
+    StepNotFoundError,
+    ReductionNotFoundError,
+)
 
 
 class ConfigValidationError(ValueError):
     """Raised when YAML configuration is invalid."""
+
     pass
 
 
@@ -44,6 +50,7 @@ class DataConfig:
     runs: list
     keys: list
     detector_keys: list = field(default_factory=list)
+    max_shots: "int | None" = None  # limit total shots loaded per run (None = all)
 
 
 @dataclass(frozen=True)
@@ -72,8 +79,8 @@ def _expand_runs(run_list) -> list[int]:
     expanded = []
     for item in run_list:
         item_str = str(item)
-        if '-' in item_str:
-            parts = item_str.split('-')
+        if "-" in item_str:
+            parts = item_str.split("-")
             if len(parts) == 2:
                 start, end = int(parts[0]), int(parts[1])
                 expanded.extend(range(start, end + 1))
@@ -85,41 +92,55 @@ def _expand_runs(run_list) -> list[int]:
 
 
 def _parse_experiment(raw: dict) -> ExperimentConfig:
-    required = ['hutch', 'experiment_id', 'lcls_run']
+    required = ["hutch", "experiment_id", "lcls_run"]
     for key in required:
         if key not in raw:
-            raise ConfigValidationError(f"experiment section missing required field: '{key}'")
+            raise ConfigValidationError(
+                f"experiment section missing required field: '{key}'"
+            )
     return ExperimentConfig(
-        hutch=str(raw['hutch']),
-        experiment_id=str(raw['experiment_id']),
-        lcls_run=int(raw['lcls_run']),
+        hutch=str(raw["hutch"]),
+        experiment_id=str(raw["experiment_id"]),
+        lcls_run=int(raw["lcls_run"]),
     )
 
 
 def _parse_data(raw: dict) -> DataConfig:
-    if 'runs' not in raw:
+    if "runs" not in raw:
         raise ConfigValidationError("data section missing required field: 'runs'")
-    if 'keys' not in raw:
+    if "keys" not in raw:
         raise ConfigValidationError("data section missing required field: 'keys'")
 
-    runs = _expand_runs(raw['runs'])
+    runs = _expand_runs(raw["runs"])
 
     keys = []
-    for hdf5_path, friendly_name in raw['keys'].items():
-        keys.append(DataKeyConfig(hdf5_path=str(hdf5_path), friendly_name=str(friendly_name)))
+    for hdf5_path, friendly_name in raw["keys"].items():
+        keys.append(
+            DataKeyConfig(hdf5_path=str(hdf5_path), friendly_name=str(friendly_name))
+        )
 
     detector_keys = []
-    if 'detector_keys' in raw:
-        for hdf5_path, config in raw['detector_keys'].items():
-            detector_keys.append(DetectorKeyConfig(
-                hdf5_path=str(hdf5_path),
-                name=config.get('name', hdf5_path),
-                rois=config.get('rois', None),
-                combine_rois=config.get('combine_rois', True),
-                transpose=config.get('transpose', False),
-            ))
+    if "detector_keys" in raw:
+        for hdf5_path, config in raw["detector_keys"].items():
+            detector_keys.append(
+                DetectorKeyConfig(
+                    hdf5_path=str(hdf5_path),
+                    name=config.get("name", hdf5_path),
+                    rois=config.get("rois", None),
+                    combine_rois=config.get("combine_rois", True),
+                    transpose=config.get("transpose", False),
+                )
+            )
 
-    return DataConfig(runs=runs, keys=keys, detector_keys=detector_keys)
+    max_shots = None
+    if "max_shots" in raw:
+        val = raw["max_shots"]
+        if val is not None:
+            max_shots = int(val)
+
+    return DataConfig(
+        runs=runs, keys=keys, detector_keys=detector_keys, max_shots=max_shots
+    )
 
 
 def _normalize_yaml_keys(d: dict) -> dict:
@@ -130,9 +151,9 @@ def _normalize_yaml_keys(d: dict) -> dict:
     normalized = {}
     for k, v in d.items():
         if k is True:
-            normalized['on'] = v
+            normalized["on"] = v
         elif k is False:
-            normalized['off'] = v
+            normalized["off"] = v
         else:
             normalized[str(k)] = v
     return normalized
@@ -147,12 +168,12 @@ def _parse_steps(raw_list: list, section_name: str) -> list[StepConfig]:
                 f"{section_name}[{i}]: each entry must be a mapping, got {type(entry).__name__}"
             )
         entry = _normalize_yaml_keys(entry)
-        if 'step' not in entry:
+        if "step" not in entry:
             raise ConfigValidationError(
                 f"{section_name}[{i}]: missing required 'step' field"
             )
-        step_name = entry['step']
-        args = {k: v for k, v in entry.items() if k != 'step'}
+        step_name = entry["step"]
+        args = {k: v for k, v in entry.items() if k != "step"}
         steps.append(StepConfig(step=step_name, args=args))
     return steps
 
@@ -160,14 +181,14 @@ def _parse_steps(raw_list: list, section_name: str) -> list[StepConfig]:
 def _validate_step_names(steps: list[StepConfig], section: str):
     """Check that all step names are registered."""
     for step_config in steps:
-        if section == 'pipeline':
+        if section == "pipeline":
             try:
                 get_step(step_config.step)
             except StepNotFoundError as e:
                 raise ConfigValidationError(
                     f"pipeline references unknown step '{step_config.step}': {e}"
                 )
-        elif section == 'reduction':
+        elif section == "reduction":
             try:
                 get_reduction(step_config.step)
             except ReductionNotFoundError as e:
@@ -201,37 +222,37 @@ def parse_yaml(path: str, validate_steps: bool = True) -> PipelineConfig:
     if not path.exists():
         raise ConfigValidationError(f"Config file not found: {path}")
 
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         raw = yaml.safe_load(f)
 
     if not isinstance(raw, dict):
         raise ConfigValidationError("YAML root must be a mapping")
 
-    if 'experiment' not in raw:
+    if "experiment" not in raw:
         raise ConfigValidationError("Missing required section: 'experiment'")
-    if 'data' not in raw:
+    if "data" not in raw:
         raise ConfigValidationError("Missing required section: 'data'")
-    if 'pipeline' not in raw:
+    if "pipeline" not in raw:
         raise ConfigValidationError("Missing required section: 'pipeline'")
 
-    experiment = _parse_experiment(raw['experiment'])
-    data = _parse_data(raw['data'])
-    pipeline_steps = _parse_steps(raw['pipeline'], 'pipeline')
+    experiment = _parse_experiment(raw["experiment"])
+    data = _parse_data(raw["data"])
+    pipeline_steps = _parse_steps(raw["pipeline"], "pipeline")
 
     reduction_steps = []
-    if 'reduction' in raw and raw['reduction']:
-        reduction_steps = _parse_steps(raw['reduction'], 'reduction')
+    if "reduction" in raw and raw["reduction"]:
+        reduction_steps = _parse_steps(raw["reduction"], "reduction")
 
     output = OutputConfig()
-    if 'output' in raw and raw['output']:
+    if "output" in raw and raw["output"]:
         output = OutputConfig(
-            format=raw['output'].get('format', 'hdf5'),
-            path=raw['output'].get('path', './results/'),
+            format=raw["output"].get("format", "hdf5"),
+            path=raw["output"].get("path", "./results/"),
         )
 
     if validate_steps:
-        _validate_step_names(pipeline_steps, 'pipeline')
-        _validate_step_names(reduction_steps, 'reduction')
+        _validate_step_names(pipeline_steps, "pipeline")
+        _validate_step_names(reduction_steps, "reduction")
 
     return PipelineConfig(
         experiment=experiment,
