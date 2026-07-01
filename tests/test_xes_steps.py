@@ -32,7 +32,9 @@ class TestNormalizeXES:
     def test_normalize_full_range(self, xes_run):
         step = get_step("normalize_xes")
         step(xes_run, on="epix_ROI_1_simultaneous_laser_time_binned")
-        result = getattr(xes_run, "epix_ROI_1_simultaneous_laser_time_binned_normalized")
+        result = getattr(
+            xes_run, "epix_ROI_1_simultaneous_laser_time_binned_normalized"
+        )
         assert result is not None
         # Each row should sum to 1.0
         row_sums = np.sum(result, axis=1)
@@ -40,8 +42,14 @@ class TestNormalizeXES:
 
     def test_normalize_pixel_range(self, xes_run):
         step = get_step("normalize_xes")
-        step(xes_run, on="epix_ROI_1_simultaneous_laser_time_binned", pixel_range=[20, 60])
-        result = getattr(xes_run, "epix_ROI_1_simultaneous_laser_time_binned_normalized")
+        step(
+            xes_run,
+            on="epix_ROI_1_simultaneous_laser_time_binned",
+            pixel_range=[20, 60],
+        )
+        result = getattr(
+            xes_run, "epix_ROI_1_simultaneous_laser_time_binned_normalized"
+        )
         assert result is not None
         # Row sums over full range won't be exactly 1 since we normalized by partial range
         assert result.shape == (20, 80)
@@ -62,13 +70,15 @@ class TestMakeEnergyAxis:
         run = MockRun()
         run.epix_ROI_1 = np.zeros((10, 100))  # 100 pixels
         step = get_step("make_energy_axis")
-        step(run,
-             detector_key="epix_ROI_1",
-             crystal_detector_distance=200.0,
-             crystal_radius=250.0,
-             d_spacing=1.637,
-             mm_per_pixel=0.05,
-             name="xes")
+        step(
+            run,
+            detector_key="epix_ROI_1",
+            crystal_detector_distance=200.0,
+            crystal_radius=250.0,
+            d_spacing=1.637,
+            mm_per_pixel=0.05,
+            name="xes",
+        )
         assert hasattr(run, "xes_energy")
         assert len(run.xes_energy) == 100
         # Energy should be monotonically increasing or decreasing
@@ -78,12 +88,14 @@ class TestMakeEnergyAxis:
     def test_energy_axis_explicit_pixels(self):
         run = MockRun()
         step = get_step("make_energy_axis")
-        step(run,
-             n_pixels=200,
-             crystal_detector_distance=150.0,
-             crystal_radius=300.0,
-             d_spacing=1.92,
-             name="cu_ka")
+        step(
+            run,
+            n_pixels=200,
+            crystal_detector_distance=150.0,
+            crystal_radius=300.0,
+            d_spacing=1.92,
+            name="cu_ka",
+        )
         assert hasattr(run, "cu_ka_energy")
         assert len(run.cu_ka_energy) == 200
 
@@ -103,8 +115,8 @@ class TestPatchPixels:
         run.spectrum = data
         step = get_step("patch_pixels")
         step(run, on="spectrum", pixels=[25], mode="interpolate")
-        # Patched pixel should be average of neighbors (1.0)
-        np.testing.assert_allclose(run.spectrum[:, 25], 1.0)
+        # Patched pixel should be close to neighbors (1.0) via polynomial fit
+        np.testing.assert_allclose(run.spectrum[:, 25], 1.0, atol=1e-3)
 
     def test_patch_zero(self):
         run = MockRun()
@@ -114,3 +126,53 @@ class TestPatchPixels:
         step = get_step("patch_pixels")
         step(run, on="spectrum", pixels=[25], mode="zero")
         np.testing.assert_allclose(run.spectrum[:, 25], 0.0)
+
+    def test_auto_detect_spike(self):
+        """auto_detect catches a bright spike column via ratio method."""
+        run = MockRun()
+        data = np.ones((10, 100))
+        data[:, 50] = 100.0  # extreme spike (100x baseline)
+        run.spectrum = data
+        step = get_step("patch_pixels")
+        step(run, on="spectrum", auto_detect=True, threshold=5.0)
+        # Column 50 should be detected and patched
+        assert 50 in run.spectrum_auto_patched_pixels
+        np.testing.assert_allclose(run.spectrum[:, 50], 1.0, atol=1e-3)
+
+    def test_auto_detect_subtle_gap(self):
+        """auto_detect catches a subtle ~50% reduced column via z-score method."""
+        run = MockRun()
+        # Smooth signal with a narrow 2-col dip at cols 40-41
+        data = np.ones((20, 200)) * 100.0
+        data[:, 40] = 50.0  # 50% reduced (ratio=0.5 — below 5x threshold)
+        data[:, 41] = 50.0
+        run.spectrum = data
+        step = get_step("patch_pixels")
+        step(run, on="spectrum", auto_detect=True, threshold=5.0, nsigma=5.0)
+        # These should be caught by z-score method (narrow dark cluster)
+        assert 40 in run.spectrum_auto_patched_pixels
+        assert 41 in run.spectrum_auto_patched_pixels
+
+    def test_auto_detect_ignores_wide_gradient(self):
+        """auto_detect does NOT flag a wide signal gradient as bad pixels."""
+        run = MockRun()
+        # Smooth gradient across 200 columns
+        data = np.tile(np.linspace(50, 150, 200), (10, 1))
+        run.spectrum = data
+        step = get_step("patch_pixels")
+        step(run, on="spectrum", auto_detect=True, threshold=5.0, nsigma=5.0)
+        # No columns should be flagged for a smooth gradient
+        assert len(run.spectrum_auto_patched_pixels) == 0
+
+    def test_auto_detect_merges_manual(self):
+        """Manual pixels are merged with auto-detected ones."""
+        run = MockRun()
+        data = np.ones((10, 100))
+        data[:, 50] = 100.0  # will be auto-detected
+        run.spectrum = data
+        step = get_step("patch_pixels")
+        step(run, on="spectrum", auto_detect=True, pixels=[10], threshold=5.0)
+        # Both manual (10) and auto (50) should be patched
+        patched = run.spectrum_auto_patched_pixels + run.spectrum_manual_patched_pixels
+        assert 10 in run.spectrum_manual_patched_pixels
+        assert 50 in run.spectrum_auto_patched_pixels
