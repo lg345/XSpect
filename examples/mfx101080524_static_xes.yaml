@@ -52,10 +52,6 @@ pipeline:
     on: epix
     adu_threshold: 3.0
 
-  # 3. Hit finding — remove low-signal shots (median - 1*std threshold)
-  - step: hitfinding
-    on: epix
-    cutoff_multiplier: 1.0
 
   # 4. Sum all shots → 2D image (704 x 200)
   - step: reduce_detector_shots
