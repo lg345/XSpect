@@ -6,6 +6,7 @@ multiprocessing.Pool, and reconverges batch results.
 """
 
 import copy
+import logging
 from multiprocessing import Pool
 from functools import partial
 
@@ -13,6 +14,25 @@ import numpy as np
 
 from XSpect.controller.config_parser import StepConfig
 from XSpect.controller.pipeline_runner import run_pipeline
+
+logger = logging.getLogger("XSpect")
+
+
+def _estimate_batch_gb(detector_configs, batch_size):
+    """Rough per-batch detector memory estimate (float64) for logging.
+    Only approximate: uses row_range span × a nominal 768-col width if
+    the full frame shape is unknown."""
+    if not detector_configs:
+        return 0.0
+    total_elems = 0
+    for cfg in detector_configs:
+        row_range = cfg[3] if len(cfg) > 3 else None
+        if row_range is not None:
+            rows = int(row_range[1]) - int(row_range[0])
+        else:
+            rows = 704  # nominal full frame
+        total_elems += batch_size * rows * 768
+    return total_elems * 8 / 1e9
 
 
 # Attributes that are part of the run's infrastructure (not step outputs)
@@ -138,12 +158,29 @@ def _load_batch_from_hdf5(
             except KeyError:
                 pass
 
-        for hdf5_path, name, transpose in detector_configs:
+        for det_cfg in detector_configs:
+            hdf5_path, name, transpose = det_cfg[0], det_cfg[1], det_cfg[2]
+            row_range = det_cfg[3] if len(det_cfg) > 3 else None
             try:
-                data = np.array(fh[hdf5_path][abs_start:abs_end, :, :])
+                if row_range is not None:
+                    r0, r1 = int(row_range[0]), int(row_range[1])
+                    if transpose:
+                        # row_range is in the transposed frame; in the raw HDF5 frame
+                        # the transposed row axis is axis 2 — slice there for efficiency.
+                        data = np.array(fh[hdf5_path][abs_start:abs_end, :, r0:r1])
+                    else:
+                        data = np.array(fh[hdf5_path][abs_start:abs_end, r0:r1, :])
+                else:
+                    data = np.array(fh[hdf5_path][abs_start:abs_end, :, :])
                 if transpose:
                     data = np.transpose(data, axes=(0, 2, 1))
                 setattr(batch_run, name, data)
+                # Record crop origin so reduce_detector_spatial can translate
+                # absolute ROI coords into cropped-array coords (see run.py).
+                if row_range is not None:
+                    if not hasattr(batch_run, "_row_offset"):
+                        batch_run._row_offset = {}
+                    batch_run._row_offset[name] = int(row_range[0])
             except KeyError:
                 pass
 
@@ -400,9 +437,14 @@ def run_batched(
     if not batches:
         return
 
+    logger.info("run_batched: %d batches, cores=%d", len(batches), cores)
+
     if cores <= 1 or len(batches) == 1:
         batch_results = []
-        for batch_range in batches:
+        for i, batch_range in enumerate(batches):
+            logger.info(
+                "  [seq] batch %d/%d shots %s", i + 1, len(batches), batch_range
+            )
             result = _process_batch_sequential(
                 batch_range,
                 run,
@@ -440,8 +482,38 @@ def run_batched(
                 precomputed_attrs=precomputed_attrs,
                 parent_total_shots=total_shots,
             )
-            with Pool(processes=cores) as pool:
-                batch_results = pool.map(process_fn, batches)
+            logger.info(
+                "  [parallel] dispatching %d batches across %d workers "
+                "(≈%.1f GB/batch est. for detector load)",
+                len(batches),
+                cores,
+                _estimate_batch_gb(detector_configs, batch_size),
+            )
+            batch_results = []
+            try:
+                with Pool(processes=cores) as pool:
+                    # imap_unordered surfaces results as they complete, so a
+                    # hang/crash is visible at the batch level instead of a
+                    # silent block on pool.map.
+                    for n_done, result in enumerate(
+                        pool.imap_unordered(process_fn, batches), start=1
+                    ):
+                        batch_results.append(result)
+                        logger.info(
+                            "  [parallel] %d/%d batches done", n_done, len(batches)
+                        )
+            except Exception as exc:
+                # A worker killed by the OOM-killer surfaces here as an opaque
+                # error (e.g. "process died with signal"). Make it actionable.
+                logger.error(
+                    "Batch worker failed after %d/%d batches: %s. "
+                    "This is often an out-of-memory kill — reduce batch_size or "
+                    "cores, or tighten row_range in the YAML.",
+                    len(batch_results),
+                    len(batches),
+                    exc,
+                )
+                raise
 
     merged = reconverge_results(batch_results)
     for key, value in merged.items():

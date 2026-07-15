@@ -1,0 +1,145 @@
+# Static XES analysis for mfx100895324 runs 36-54 (Fe Kalpha + Fe Kbeta)
+# =========================================================================
+# Reference data for upcoming experiment mfx102101026.
+#
+# Instrument (both emission lines land on the SAME detector, epix100_1):
+#   - Fe Kalpha : LiNbO3 (2 3 -4) analyzer, R = 250 mm, d = 0.981 Ang
+#                 signal in detector rows ~228-248, dispersed along columns
+#   - Fe Kbeta  : Ge (6 2 0) analyzer,     R = 250 mm, d = 0.8946 Ang
+#                 signal in detector rows ~158-180, dispersed along columns
+#
+# Detector data: epix100_1/ROI_area, shape (nshots, 300 rows, 710 cols)
+#   dispersion axis      = columns (axis 2 for 3D, axis 1 for the 2D sum)
+#   cross-dispersion axis = rows   (axis 1 for 3D, axis 0 for the 2D sum)
+#
+# This is a STATIC (non-time-resolved) within-run analysis. There is no
+# laser in these runs (lightStatus/laser == 0); only xray-on shots are used.
+#
+# NOTE ON EXISTING SMALLDATA:
+#   This reads the already-produced smalldata HDF5 files in
+#   /sdf/data/lcls/ds/mfx/mfx100895324/hdf5/smalldata/ as-is.
+#   It does NOT modify them. The producer ROI was [[0,300],[0,710]] on
+#   epix100_1, so both emission bands are already contained in ROI_area.
+#   If ROIs/reprocessing are ever needed, redeploy smalldata under the
+#   lbgee results directory (do not touch the original producers).
+#
+# New-API usage:
+#   from XSpect import Pipeline
+#   pipe = Pipeline.from_yaml("mfx100895324_static_xes.yaml")
+#   pipe.run(cores=8, batch_size=2000)
+#
+# Pipeline (matches primary_analysis_static pattern):
+#   1. union_shots(epix, [xray, xray])   — keep only xray shots
+#   2. filter_detector_adu(epix, 3.0)    — zero pixels below threshold
+#   3. reduce_detector_shots(epix, sum)  — sum all shots -> 2D (300 x 710)
+#   4. patch_pixels(auto_detect)         — repair hot pixels / ASIC-gap columns
+#   5. reduce_detector_spatial(rows)     — two row-ROIs (Ka, Kb), sum rows
+#                                          -> two 1D spectra (710,) each
+#   6. make_energy_axis (Kalpha)         — LiNbO3(23-4) geometry -> eV
+#   7. make_energy_axis (Kbeta)          — Ge(620) geometry -> eV
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx100895324
+  lcls_run: 1
+
+data:
+  runs: [36-54]
+  keys:
+    lightStatus/xray: xray
+    lightStatus/laser: laser
+    MfxDg2BmMon/totalIntensityJoules: ipm
+  detector_keys:
+    epix100_1/ROI_area:
+      name: epix
+      transpose: false
+
+pipeline:
+  # 1. Filter to xray-only shots (AND of xray mask with itself = xray mask).
+  - step: union_shots
+    on: epix
+    filter_keys: [xray, xray]
+    new_key: epix
+
+  # 2. ADU threshold: zero pixels below 3.0 ADU to suppress electronic noise.
+  - step: filter_detector_adu
+    on: epix
+    adu_threshold: 3.0
+
+  # 3. Sum all xray shots -> 2D image (300 rows x 710 cols).
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+    purge: true
+
+  # 4. Repair bad pixels on the 2D summed image. auto_detect finds hot pixels
+  #    and ASIC-gap columns along the dispersion (column) axis.
+  #    Parameters matched to the mfx100895324_spike_finder_pixels.ipynb finder,
+  #    which produced clean per-band results:
+  #      nsigma=6.0, max_gap_width=3, smooth_window=21.
+  - step: patch_pixels
+    on: epix_reduced
+    auto_detect: true
+    mode: polynomial
+    axis: 1
+    threshold: 5.0
+    nsigma: 6.0
+    max_gap_width: 3
+    smooth_window: 21
+
+  # 5. Extract the two emission bands as separate row-ROIs (axis 0 = rows =
+  #    cross-dispersion). combine_rois:false keeps them separate; summing over
+  #    rows leaves the dispersion axis -> two 1D spectra of length 710.
+  #      ROI_1 = Fe Kalpha (rows 228-248)
+  #      ROI_2 = Fe Kbeta  (rows 158-180)
+  - step: reduce_detector_spatial
+    on: epix_reduced
+    rois: [[228, 248], [158, 180]]
+    combine_rois: false
+    reduction: sum
+    axis: 0
+
+  # 6. Fe Kalpha energy axis — LiNbO3 (2 3 -4), R = 250 mm, d = 0.981 Ang.
+  #    crystal_detector_distance (A) is a STARTING value taken from a matching
+  #    LiNbO3 Ka setup; refine against a known Ka1/Ka2 reference for
+  #    mfx102101026.
+  - step: make_energy_axis
+    detector_key: epix_reduced_ROI_1
+    n_pixels: 710          # pin pixel count = dispersion length of ROI_area.
+                           # Required for multi-core runs: the axis is derived
+                           # in the pre-pipeline pass before the detector is
+                           # loaded, so without this it falls back to the
+                           # default 100 px and mismatches the 710-px spectra.
+    crystal_detector_distance: 42.75
+    crystal_radius: 250.0
+    d_spacing: 0.981
+    mm_per_pixel: 0.05
+    name: kalpha
+
+  # 7. Fe Kbeta energy axis — Ge (6 2 0), R = 250 mm, d = 0.8946 Ang.
+  #    crystal_detector_distance (A) is a STARTING value from a matching Ge
+  #    Kb setup; refine against a known Kb reference for mfx102101026.
+  - step: make_energy_axis
+    detector_key: epix_reduced_ROI_2
+    n_pixels: 710          # pin pixel count (see K-alpha note above)
+    crystal_detector_distance: 50.6
+    crystal_radius: 250.0
+    d_spacing: 0.8946
+    mm_per_pixel: 0.05
+    name: kbeta
+
+# No reduction section: this is a static per-run analysis. Each run's
+# spectra are stored individually in Pipeline.results as:
+#   run_<N>.epix_reduced_ROI_1  (Fe Kalpha, 710 px)
+#   run_<N>.epix_reduced_ROI_2  (Fe Kbeta,  710 px)
+#   kalpha_energy / kbeta_energy  (shared energy axes)
+# for each N in 36..54. Summing runs is a trivial element-wise add of the
+# per-run ROI arrays.
+# (The combine_runs reduction is intentionally NOT used here: it is a
+#  time-resolved laser-on/off difference operation, not static summation.)
+
+output:
+  format: hdf5
+  # Absolute path so results land next to this YAML regardless of the CWD
+  # the notebook/pipeline runs from.
+  path: /sdf/data/lcls/ds/mfx/mfx100895324/results/lbgee/XSpect/experiments/mfx100895324/results/
