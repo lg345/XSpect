@@ -1076,7 +1076,9 @@ class XESAnalysis(SpectroscopyAnalysis):
 
         for roi in roi_list:
             label_laser_off = roi + '_xray_not_laser_reduced_time_binned'
-            xes = getattr(analysis_object.analyzed_runs[0], label_laser_off)
+            xes = getattr(analysis_object.analyzed_runs[0], label_laser_off, None)
+            if xes is None:
+                continue
             label_laser_on = roi + '_simultaneous_laser_reduced_time_binned'
             xes_laser = getattr(analysis_object.analyzed_runs[0], label_laser_on)
 

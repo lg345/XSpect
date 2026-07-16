@@ -1,0 +1,30 @@
+experiment:
+  hutch: test
+  experiment_id: test00000
+  lcls_run: 1
+
+data:
+  runs: [1]
+  keys:
+    ipm4/sum: ipm
+  detector_keys:
+    epix_1/ROI_0_area:
+      name: epix
+      rois: [[0, -1]]
+      combine_rois: true
+
+pipeline:
+  - step: placeholder_add
+    on: epix
+    value: 1.0
+  - step: placeholder_multiply
+    on: epix
+    value: 2.0
+
+reduction:
+  - step: placeholder_sum
+    on: epix.added
+
+output:
+  format: hdf5
+  path: ./test_results/

@@ -14,6 +14,14 @@ Ensure that you have the necessary dependencies installed on your system.
 
 Check out our [documentation](https://lg345.github.io/XSpect/index.html) page for source code details and examples to get started. 
 
+See [`docs/YAML_PIPELINE_GUIDE.md`](docs/YAML_PIPELINE_GUIDE.md) for the YAML pipeline reference (all registered steps and sections).
+
+## Skills
+
+Agent skills for common workflows live under [`skills/`](skills/):
+
+- [`XSpect-setup-XES`](skills/XSpect-setup-XES/SKILL.md) — end-to-end setup of a new XES experiment: LUTE smalldata pipeline, LUTE YAML, XSpect pipeline YAML, and diagnostic/analysis notebooks. Covers static, time-resolved (pump-probe), CCM-scanned, and droplet/photon-counted XES.
+
 ## License  
 Copyright 2025 XSpecT Team
 

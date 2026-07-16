@@ -1,0 +1,114 @@
+# 2D XAS: DCCM energy × time delay for xcs101591326
+# Runs 187-216: simultaneous DCCM energy scan + pump-probe time axis
+# Produces transient absorption map: Δμ(E, t) = μ_on(E,t) − μ_off_pre-t0(E)
+#
+# Axes:
+#   Energy: auto from dccm_E_setpoint (~0.25 eV resolution)
+#   Time:   enc/lasDelay, -2 to 8 ps, 0.5 ps bins (21 points)
+#
+# Output arrays per run (shape: n_time × n_energy):
+#   epix_simultaneous_laser_time_energy_binned
+#   ipm_simultaneous_laser_time_energy_binned
+#   epix_xray_not_laser_time_energy_binned
+#   ipm_xray_not_laser_time_energy_binned
+
+experiment:
+  hutch: xcs
+  experiment_id: xcs101591326
+  lcls_run: 26
+
+data:
+  runs: ["187-216"]
+  keys:
+    ipm4/sum: ipm
+    epix_2/ROI_sum: epix
+    epicsUser/dccm_E_setpoint: ccm
+    enc/lasDelay: encoder
+    tt/ttCorr: time_tool_correction
+    lightStatus/xray: xray
+    evr/code_41: laser
+  detector_keys: {}
+
+pipeline:
+  # 1. Filter shots on upstream I0 intensity
+  - step: filter_shots
+    on: simultaneous
+    filter_key: ipm
+    threshold: 50
+
+  # 2. CCM energy axis (auto-derived from setpoints, 0.25 eV resolution)
+  - step: make_ccm_axis
+    energies: auto
+    ccm_key: ccm
+    resolution: 0.00025
+
+  # 3. Digitize shots into CCM energy bins
+  - step: ccm_binning
+    ccm_key: ccm
+    ccm_bins_key: ccm_bins
+
+  # 4. Time binning: -2 to 8 ps, 0.5 ps bins (21 points via linspace)
+  - step: time_binning
+    bins: [-2, 8, 21]
+    lxt_key: null
+    fast_delay_key: encoder
+    tt_correction_key: time_tool_correction
+
+  # 5. Split by laser status — create filtered index arrays for both dimensions
+  - step: union_shots
+    on: epix
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: epix
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: ipm
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: ipm
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: ccm_bin_indices
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: ccm_bin_indices
+    filter_keys: [xray, laser]
+
+  - step: union_shots
+    on: timing_bin_indices
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: timing_bin_indices
+    filter_keys: [xray, laser]
+
+  # 6. 2D binning (time × energy) — laser-on
+  - step: reduce_detector_ccm_temporal
+    on: epix_simultaneous_laser
+    timing_bin_key: timing_bin_indices_simultaneous_laser
+    ccm_bin_key: ccm_bin_indices_simultaneous_laser
+
+  - step: reduce_detector_ccm_temporal
+    on: ipm_simultaneous_laser
+    timing_bin_key: timing_bin_indices_simultaneous_laser
+    ccm_bin_key: ccm_bin_indices_simultaneous_laser
+
+  # 7. 2D binning (time × energy) — laser-off reference
+  - step: reduce_detector_ccm_temporal
+    on: epix_xray_not_laser
+    timing_bin_key: timing_bin_indices_xray_not_laser
+    ccm_bin_key: ccm_bin_indices_xray_not_laser
+
+  - step: reduce_detector_ccm_temporal
+    on: ipm_xray_not_laser
+    timing_bin_key: timing_bin_indices_xray_not_laser
+    ccm_bin_key: ccm_bin_indices_xray_not_laser
+
+output:
+  format: hdf5
+  path: ./results/xcs101591326_2d_xas/

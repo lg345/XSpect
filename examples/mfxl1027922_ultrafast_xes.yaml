@@ -1,0 +1,139 @@
+# Ultrafast time-resolved XES analysis for mfxl1027922
+# Replicates the workflow in XSpect_XES_mfxl1027922.ipynb (cells 1-5)
+#
+# Old pattern:
+#   xes = XESBatchAnalysisRotation()
+#   keys = ['tt/ttCorr','epics/lxt','enc/lasDelay','ipm4/sum','tt/AMPL','epix_2/ROI_0_area']
+#   names = ['time_tool_correction','lxt_ttc','encoder','ipm','time_tool_ampl','epix']
+#   xes.rois = [[0, 50]]
+#   xes.adu_cutoff = 3.0
+#   xes.angle = 90
+#   xes.transpose = True
+#   xes.mintime = -0.9
+#   xes.maxtime = 0.9
+#   xes.numpoints = 40
+#   xes.add_filter('simultaneous','time_tool_ampl',0.05)
+#   xes.run_parser(['44-46'])
+#   xes.primary_analysis_parallel_range(8, xes_experiment, increment=1000)
+#
+# New pattern:
+#   pipe = Pipeline.from_yaml("mfxl1027922_ultrafast_xes.yaml")
+#   pipe.run(cores=8, batch_size=1000)
+#
+# Matches primary_analysis_parallel_range workflow (time-resolved):
+#   1. filter_shots(simultaneous, time_tool_ampl > 0.05) — keep good timing shots
+#   2. filter_detector_adu(epix, 3.0) — zero pixels below threshold
+#   3. rotate_detector(epix, 90) — rotate detector image 90 degrees
+#   4. reduce_detector_spatial(epix, rois=[[0,50]]) — ROI sum → 2D (shots x pixels)
+#   5. union_shots(epix_ROI_1, [simultaneous, laser]) — laser-on shots
+#   6. separate_shots(epix_ROI_1, [xray, laser]) — xray-only (laser-off) shots
+#   7. time_binning([-0.9, 0.9, 40]) — create 40 time bins
+#   8. union/separate timing indices — split timing for on/off
+#   9. reduce_detector_temporal — bin spectra into time bins
+#  10. normalize_xes — area-normalize each time bin
+#  11. make_energy_axis — vonHamos geometry → energy
+
+experiment:
+  hutch: mfx
+  experiment_id: mfxl1027922
+  lcls_run: 22
+
+data:
+  runs: [44-46]
+  keys:
+    tt/ttCorr: time_tool_correction
+    enc/lasDelay: encoder
+    ipm_dg2/sum: ipm
+    tt/AMPL: time_tool_ampl
+    lightStatus/xray: xray
+    lightStatus/laser: laser
+  detector_keys:
+    epix_2/ROI_0_area:
+      name: epix
+      rois: [[0, 50]]
+      combine_rois: true
+      transpose: true
+
+pipeline:
+  # 1. Filter simultaneous shots on time tool amplitude (keep > 0.05)
+  - step: filter_shots
+    on: simultaneous
+    filter_key: time_tool_ampl
+    threshold: 0.05
+
+  # 2. Create time bins from timing data (-0.9 to 0.9 ps, 40 points)
+  #    This must happen early so we can filter masks by delay range
+  - step: time_binning
+    bins: [-0.9, 0.9, 40]
+    lxt_key: null
+
+  # 3. Filter shot masks to only include shots within timing range
+  - step: filter_shots
+    on: xray
+    filter_key: delays
+    threshold: [-0.9, 0.9]
+
+  - step: filter_shots
+    on: simultaneous
+    filter_key: delays
+    threshold: [-0.9, 0.9]
+
+  # 4. Split timing bin indices by laser status
+  - step: union_shots
+    on: timing_bin_indices
+    filter_keys: [simultaneous, laser]
+
+  - step: separate_shots
+    on: timing_bin_indices
+    filter_keys: [xray, laser]
+
+  # 5. ADU threshold (zero detector pixels below 3.0 ADU)
+  - step: filter_detector_adu
+    on: epix
+    adu_threshold: 3.0
+
+  # 6. Reduce spatial: sum cross-dispersion ROI [0:50] on axis 1 → 2D (shots x 705)
+  #    Data is (shots, 705, 100) after transpose; ROI on axis=2 (cross-dispersion)
+  - step: reduce_detector_spatial
+    on: epix
+    rois: [[0, 50]]
+    combine_rois: true
+    reduction: sum
+    axis: 2
+
+  # 8. Select laser-on shots (simultaneous AND laser)
+  - step: union_shots
+    on: epix_ROI_1
+    filter_keys: [simultaneous, laser]
+
+  # 9. Select laser-off shots (xray AND NOT laser)
+  - step: separate_shots
+    on: epix_ROI_1
+    filter_keys: [xray, laser]
+
+  # 10. Bin detector data into time bins (laser-on)
+  - step: reduce_detector_temporal
+    on: epix_ROI_1_simultaneous_laser
+    timing_bin_key: timing_bin_indices_simultaneous_laser
+
+  # 11. Bin detector data into time bins (laser-off / xray-only)
+  - step: reduce_detector_temporal
+    on: epix_ROI_1_xray_not_laser
+    timing_bin_key: timing_bin_indices_xray_not_laser
+
+  # 12. Generate energy axis from vonHamos spectrometer geometry
+  - step: make_energy_axis
+    detector_key: epix_ROI_1
+    crystal_detector_distance: 50.6
+    crystal_radius: 250.0
+    d_spacing: 0.895
+    mm_per_pixel: 0.05
+    name: kbeta
+
+reduction:
+  - step: combine_runs
+    detector_key: epix_ROI_1
+
+output:
+  format: hdf5
+  path: ./results/mfxl1027922_ultrafast/

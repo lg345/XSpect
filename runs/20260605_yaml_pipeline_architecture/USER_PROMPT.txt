@@ -1,0 +1,25 @@
+Implement Phase 1A of the XSpect YAML-driven architecture overhaul (Issue #82, sub-issue #84).
+
+This is a Python library refactoring, not a web application. The goal is to replace XSpect's
+controller subclass hierarchy (6+ classes with hardcoded analysis sequences) with a generic
+Pipeline class that dispatches analysis steps from a YAML recipe.
+
+Phase 1A scope (core infrastructure):
+1. model/run.py - Refactored spectroscopy_run with self.results = {} flat dict
+2. model/experiment.py - Move experiment, spectroscopy_experiment classes as-is
+3. analysis/registry.py - @register_step(name), @register_reduction(name), get_step(), get_reduction(), list_steps()
+4. controller/config_parser.py - YAML parse, validate required sections, raise on unknown step names
+5. controller/pipeline_runner.py - Iterate pipeline section, look up + call steps, log execution
+6. controller/batch_manager.py - Split runs into shot ranges, multiprocessing.Pool, reconverge batch results
+7. Pipeline class - Pipeline.from_yaml(path), .run(cores, batch_size), .results
+
+Acceptance criteria:
+- Pipeline.from_yaml("test.yaml").run(cores=4, batch_size=1000) executes on a minimal YAML with placeholder steps
+- Registry correctly discovers and dispatches decorated methods
+- Batch manager splits and reconverges shot ranges correctly
+- Old imports still work via shim __init__.py
+
+Framework: Python library (no web framework)
+skip_ux: true
+max_revision_loops: 2
+auto_approve: true
