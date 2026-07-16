@@ -7,11 +7,67 @@ Usage:
     results = pipeline.results
 """
 
+import logging
+import os
+
 from XSpect.controller.config_parser import parse_yaml, PipelineConfig
 from XSpect.controller.pipeline_runner import run_pipeline, run_reductions
 from XSpect.controller.batch_manager import run_batched
 from XSpect.model.experiment import experiment, spectroscopy_experiment
 from XSpect.model.run import spectroscopy_run
+
+logger = logging.getLogger("XSpect")
+
+
+def enable_logging(level=logging.INFO, log_file=None):
+    """Attach handlers to the XSpect logger so pipeline progress is visible.
+
+    Call once before ``Pipeline.run()``:
+
+        from XSpect.controller.pipeline import enable_logging
+        enable_logging()                          # stderr only
+        enable_logging(log_file="xspect.log")     # stderr + file
+        enable_logging(log_file="xspect.log", level=logging.DEBUG)
+
+    Parameters
+    ----------
+    level : int
+        Logging level (default logging.INFO). Use logging.DEBUG for per-step lines.
+    log_file : str or None
+        If given, also write logs to this file (appended). Worker subprocesses
+        do NOT inherit this handler, but the main process logs every batch's
+        completion, so the file captures full pipeline progress including the
+        point of any hang/OOM.
+
+    Safe to call multiple times; it will not add duplicate handlers.
+    """
+    logger.setLevel(level)
+
+    fmt = logging.Formatter(
+        "[XSpect %(asctime)s %(levelname)s] %(message)s", datefmt="%Y-%m-%d %H:%M:%S"
+    )
+
+    # stderr handler (for notebook/terminal)
+    if not any(getattr(h, "_xspect_stream", False) for h in logger.handlers):
+        sh = logging.StreamHandler()
+        sh.setFormatter(fmt)
+        sh._xspect_stream = True
+        logger.addHandler(sh)
+
+    # file handler
+    if log_file is not None:
+        log_file = os.path.abspath(os.path.expanduser(log_file))
+        already = any(
+            getattr(h, "_xspect_file", None) == log_file for h in logger.handlers
+        )
+        if not already:
+            fh = logging.FileHandler(log_file, mode="a")
+            fh.setFormatter(fmt)
+            fh._xspect_file = log_file
+            logger.addHandler(fh)
+            logger.info("XSpect logging to file: %s", log_file)
+
+    return logger
 
 
 class Pipeline:
@@ -63,21 +119,37 @@ class Pipeline:
             Number of shots per batch.
         """
         self._status_log.append("Pipeline execution started")
+        logger.info(
+            "Pipeline execution started (cores=%d, batch_size=%d)", cores, batch_size
+        )
 
         exp = self._create_experiment()
 
         detector_configs = [
-            (dc.hdf5_path, dc.name, dc.transpose)
+            (dc.hdf5_path, dc.name, dc.transpose, dc.row_range)
             for dc in self.config.data.detector_keys
         ]
         scalar_keys = [(dk.hdf5_path, dk.friendly_name) for dk in self.config.data.keys]
+        logger.info("Runs to process: %s", list(self.config.data.runs))
 
         for run_number in self.config.data.runs:
             self._status_log.append(f"Processing run {run_number}")
+            logger.info("── Run %s: creating run object", run_number)
             run = self._create_run(exp, run_number)
             self._load_data(run, skip_detector=True)
+            total = getattr(run, "total_shots", None)
+            logger.info("Run %s: %s total shots", run_number, total)
 
             if hasattr(run, "total_shots") and run.total_shots > batch_size:
+                n_batches = -(-run.total_shots // batch_size)  # ceil
+                logger.info(
+                    "Run %s: BATCHED path — %d shots / %d per batch = %d batches on %d cores",
+                    run_number,
+                    run.total_shots,
+                    batch_size,
+                    n_batches,
+                    cores,
+                )
                 # Pre-run the pipeline on the parent run (no detector loaded).
                 # Detector-dependent steps return gracefully; scalar-only steps
                 # (e.g. make_ccm_axis, ccm_binning, time_binning) fire here and
@@ -87,6 +159,9 @@ class Pipeline:
                 # its own from an incomplete slice of the data.
                 run_pipeline(run, self.config.pipeline)
                 precomputed_attrs = self._collect_scalar_precomputed(run)
+                logger.info(
+                    "Run %s: pre-pass complete, dispatching batches…", run_number
+                )
 
                 run_batched(
                     run,
@@ -98,14 +173,19 @@ class Pipeline:
                     precomputed_attrs=precomputed_attrs,
                 )
             else:
+                logger.info(
+                    "Run %s: SINGLE path — loading detector into memory", run_number
+                )
                 self._load_detector(run)
                 run_pipeline(run, self.config.pipeline)
 
             self.analyzed_runs.append(run)
             self._status_log.append(f"Completed run {run_number}")
+            logger.info("Run %s: complete", run_number)
 
         if self.config.reduction:
             self._status_log.append("Running reduction steps")
+            logger.info("Running %d reduction step(s)", len(self.config.reduction))
             reduction_results = run_reductions(
                 self.analyzed_runs, self.config.reduction
             )
@@ -250,6 +330,8 @@ class Pipeline:
                 if det_config.rois is not None:
                     kwargs["rois"] = det_config.rois
                     kwargs["combine"] = det_config.combine_rois
+                if det_config.row_range is not None:
+                    kwargs["row_range"] = det_config.row_range
                 run.load_run_key_delayed(
                     [det_config.hdf5_path],
                     [det_config.name],
@@ -271,6 +353,8 @@ class Pipeline:
                 kwargs["rois"] = det_config.rois
                 kwargs["combine"] = det_config.combine_rois
             kwargs["transpose"] = det_config.transpose
+            if det_config.row_range is not None:
+                kwargs["row_range"] = det_config.row_range
             run.load_run_key_delayed(
                 [det_config.hdf5_path],
                 [det_config.name],

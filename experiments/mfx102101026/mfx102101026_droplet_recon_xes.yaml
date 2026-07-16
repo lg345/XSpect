@@ -1,0 +1,86 @@
+# Droplet-reconstructed static XES for mfx102101026 (Fe Kα + Kβ).
+#
+# Photon-counted analogue of mfx102101026_static_xes.yaml. Instead of loading
+# the ADU epix100_0/ROI_area dataset, each shot's image is rebuilt on-the-fly
+# from the droplet2photon sparse photon coordinates via the native XSpect
+# `droplet_reconstruction` step. The ROI is applied ON THE SPARSE ARRAYS
+# (photons filtered to the window before densifying — the full 704x768 panel is
+# never allocated), then rotation and spatial reduction run on the small
+# cropped image, exactly as in the working mfx101609126 droplet workflow.
+#
+# REQUIRES the droplet2Photons smalldata step (getDroplet2Photons in the LUTE
+# config), which produces:
+#   epix100_0/droplet_droplet2phot_sparse_{row,col,data,tile}
+# Re-run SubmitSMD for the runs before using this YAML.
+#
+# COORDINATES: droplet2phot sparse coords are FULL-PANEL RAW (rows 0-703,
+# cols 0-767) and are NOT transposed. The reconstruction ROI below is therefore
+# in raw-panel coordinates:
+#   rows 140-320  -> dispersion / spectral axis (emission line spreads here)
+#   cols 140-230  -> cross-dispersion (covers both Kβ ~145-176 and Kα ~188-223)
+#
+# TODO before trusting the spectra:
+#   1. Re-run SubmitSMD with droplet2Photons enabled.
+#   2. Verify the rotation angle with find_rotation_angle (or the rotation
+#      diagnostic) and set `angle` below. Start at 0.0 (no rotation).
+#   3. Confirm the Kα/Kβ row bands in the reduce step against the reconstructed
+#      mean image (Section 7 of the droplet notebook plots it).
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx102101026
+  lcls_run: 1
+
+data:
+  runs: [9]
+  keys:
+    lightStatus/xray: xray
+    MfxDg2BmMon/totalIntensityJoules: ipm
+  # No detector_keys — the epix image comes from droplet_reconstruction.
+
+pipeline:
+  # 1. Reconstruct per-shot photon images from the droplet2photon sparse arrays.
+  #    ROI is applied on the sparse photons (raw full-panel coords).
+  #    Output shape: (n_shots, 180, 90)  = (rows 140-320, cols 140-230)
+  - step: droplet_reconstruction
+    det: epix100_0
+    new_key: epix
+    roi: [140, 320, 140, 230]
+
+  # 2. Keep only xray-on shots.
+  - step: union_shots
+    on: epix
+    filter_keys: [xray, xray]
+    new_key: epix
+
+  #    NOTE: no filter_detector_adu — droplet images are PHOTON COUNTS (1,2,3…),
+  #    an ADU threshold would zero all signal.
+
+  # 3. Sum all xray shots -> mean photon image (180 rows x 90 cols).
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+    purge: true
+
+  # 4. (optional) rotate to align dispersion with the row axis.
+  #    TODO: set angle from the rotation diagnostic; 0.0 = no rotation.
+  - step: rotate_detector
+    on: epix_reduced
+    angle: 0.0
+    reshape: false
+
+  # 5. Extract the two emission bands as separate ROIs and project onto the
+  #    dispersion axis. Bands are in ROI-LOCAL coords (raw col - 140):
+  #      Kα raw cols 188-223 -> local 48-83
+  #      Kβ raw cols 145-176 -> local 5-36
+  #    Reduce along axis 1 (cols) to project each band onto the dispersion rows.
+  - step: reduce_detector_spatial
+    on: epix_reduced
+    rois: [[48, 83], [5, 36]]
+    combine_rois: false
+    reduction: sum
+    axis: 1
+
+output:
+  format: hdf5
+  path: /sdf/data/lcls/ds/mfx/mfx100895324/results/lbgee/XSpect/experiments/mfx102101026/results/

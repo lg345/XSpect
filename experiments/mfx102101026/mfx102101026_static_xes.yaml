@@ -1,0 +1,133 @@
+# Static XES analysis for mfx102101026 (Fe Kalpha + Fe Kbeta)
+# ============================================================
+# Ported from mfx100895324_static_xes.yaml.
+#
+# Instrument: same von Hamos spectrometer as mfx100895324.
+# Both emission lines land on epix100_0 (NOT epix100_1 as in the reference
+# experiment). The detector is stored full-frame as (nshots, 704, 768) in HDF5
+# but is transposed by the pipeline to (nshots, 768, 704) so that the geometry
+# matches the mfx100895324 convention:
+#
+#   - Fe Kalpha : LiNbO3 (2 3 -4) analyzer, R = 250 mm, d = 0.981 Ang
+#   - Fe Kbeta  : Ge (6 2 0) analyzer,     R = 250 mm, d = 0.8946 Ang
+#
+# After transpose: shape (nshots, 768 rows, 704 cols)
+#   dispersion axis       = columns (axis 2 for 3D, axis 1 for the 2D sum) = 704 px
+#   cross-dispersion axis = rows    (axis 1 for 3D, axis 0 for the 2D sum) = 768 px
+#
+# -----------------------------------------------------------------------
+# TODO: ROI ROW CALIBRATION
+#   The Kalpha and Kbeta row bands below are ESTIMATES based on a visual
+#   inspection of run 3 (first science run). Verify and refine them using
+#   Section 1 (detector diagnostic) in the notebook before running the
+#   full analysis:
+#     1. Run the pipeline (cell 1 in the notebook).
+#     2. Execute the diagnostic cell (Section 1) with DIAG_RUN = 3.
+#     3. Adjust ka_rows / kb_rows in both this YAML and the notebook to
+#        match the bright signal bands visible in the row projection.
+#     4. Calibrate crystal_detector_distance for each axis against the
+#        known Ka1 (6404 eV) / Ka2 (6391 eV) and Kb (7058 eV) positions.
+# -----------------------------------------------------------------------
+#
+# New-API usage:
+#   from XSpect import Pipeline
+#   pipe = Pipeline.from_yaml("mfx102101026_static_xes.yaml")
+#   pipe.run(cores=8, batch_size=2000)
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx102101026
+  lcls_run: 1
+
+data:
+  runs: [10]   # beam-on runs; 4, 5, 8 excluded (no beam confirmed)
+  keys:
+    lightStatus/xray: xray
+    lightStatus/laser: laser
+    MfxDg2BmMon/totalIntensityJoules: ipm
+  detector_keys:
+    epix100_0/ROI_area:
+      name: epix
+      transpose: true
+      row_range: [130, 280]   # crop cross-dispersion at import (transposed frame)
+                              # raw HDF5: (n,704,768) → slice axis 2 → (n,704,150)
+                              # after transpose: (n,150,704)
+                              # ferricyanide Kα [188,223] and Kβ [145,176] both inside
+                              # with margin; window also covers foil (run 3) bands
+
+pipeline:
+  # 1. Filter to xray-only shots.
+  - step: union_shots
+    on: epix
+    filter_keys: [xray, xray]
+    new_key: epix
+
+  # 2. ADU threshold: zero pixels below 3.0 ADU.
+  - step: filter_detector_adu
+    on: epix
+    adu_threshold: 3.0
+
+  # 3. Hit-finding: reject dark shots (no photons after ADU cut).
+  #    min_sum=1.0 keeps any shot with at least one above-threshold pixel.
+  #    Raise to e.g. 50.0 for stricter single-photon selection.
+  #- step: hitfinding
+  #  on: epix
+  #  min_sum: 1.0
+
+  # 4. Sum all hit xray shots -> 2D image (768 rows x 704 cols, after transpose).
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+    purge: true
+
+  # 5. Repair bad pixels on the 2D summed image.
+  - step: patch_pixels
+    on: epix_reduced
+    auto_detect: true
+    mode: polynomial
+    axis: 1
+    threshold: 5.0
+    nsigma: 6.0
+    max_gap_width: 3
+    smooth_window: 21
+
+  # 6. Extract the two emission bands as separate row-ROIs.
+  #    ROIs are in ABSOLUTE (full-frame) coordinates. The pipeline
+  #    automatically translates them to the cropped-array frame using the
+  #    row_range offset recorded at import, so these match the diagnostic
+  #    image and notebook ka_rows/kb_rows directly.
+  #    Ferricyanide bands (shifted relative to the Fe foil in run 3):
+  #      ROI_1 = Fe Kalpha (rows 188-223)
+  #      ROI_2 = Fe Kbeta  (rows 145-176)
+  - step: reduce_detector_spatial
+    on: epix_reduced
+    rois: [[188, 223], [145, 176]]
+    combine_rois: false
+    reduction: sum
+    axis: 0
+
+  # 7. Fe Kalpha energy axis — LiNbO3 (2 3 -4), R = 250 mm, d = 0.981 Ang.
+  #    TODO: refine crystal_detector_distance against known Ka1 (6404 eV).
+  - step: make_energy_axis
+    detector_key: epix_reduced_ROI_1
+    n_pixels: 704          # dispersion axis length after transpose
+    crystal_detector_distance: 42.75
+    crystal_radius: 250.0
+    d_spacing: 0.981
+    mm_per_pixel: 0.05
+    name: kalpha
+
+  # 7. Fe Kbeta energy axis — Ge (6 2 0), R = 250 mm, d = 0.8946 Ang.
+  #    TODO: refine crystal_detector_distance against known Kb (7058 eV).
+  - step: make_energy_axis
+    detector_key: epix_reduced_ROI_2
+    n_pixels: 704          # dispersion axis length after transpose
+    crystal_detector_distance: 42.75
+    crystal_radius: 250.0
+    d_spacing: 0.8946
+    mm_per_pixel: 0.05
+    name: kbeta
+
+output:
+  format: hdf5
+  path: /sdf/data/lcls/ds/mfx/mfx100895324/results/lbgee/XSpect/experiments/mfx102101026/results/

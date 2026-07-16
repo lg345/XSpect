@@ -380,6 +380,31 @@ def reduce_detector_spatial(run, **kwargs):
 
     axis_size = detector.shape[roi_axis]
 
+    # If the detector was cropped at import (row_range), the ROIs in the YAML
+    # are in ABSOLUTE (full-frame) coordinates but the array now starts at the
+    # crop origin. Translate ROIs into cropped-array coordinates automatically
+    # so the YAML can always use absolute row numbers.
+    # The offset is keyed by the loaded detector name (e.g. "epix"); derived
+    # keys like "epix_reduced" inherit it by stripping known suffixes.
+    row_offset = 0
+    offsets = getattr(run, "_row_offset", None)
+    if offsets:
+        candidate = detector_key
+        for suffix in ("_reduced", "_ROI_1", "_ROI_2"):
+            candidate = candidate.replace(suffix, "")
+        row_offset = offsets.get(detector_key, offsets.get(candidate, 0))
+    if row_offset:
+        adjusted = []
+        for roi in rois:
+            start = roi[0] - row_offset
+            end = (roi[1] - row_offset) if roi[1] is not None else None
+            adjusted.append([max(0, start), end])
+        run.update_status(
+            f"reduce_detector_spatial: applied row_range offset {row_offset} "
+            f"to ROIs {rois} -> {adjusted}"
+        )
+        rois = adjusted
+
     if combine:
         mask = np.zeros(axis_size, dtype=bool)
         for roi in rois:
@@ -610,14 +635,28 @@ def reduce_detector_temporal(run, **kwargs):
 def hitfinding(run, **kwargs):
     """Filter shots by total signal intensity (hit detection).
 
-    Computes per-shot total signal and keeps only shots above a
-    threshold defined as median - cutoff_multiplier * std.
+    Keeps shots whose per-shot detector sum exceeds a threshold.
+    Two modes (applied after any ADU filtering upstream):
+
+      min_sum (preferred for sparse/XES data):
+        Keep shots where sum(detector) > min_sum.
+        Use min_sum=1.0 to reject shots that are completely zero after
+        the ADU threshold — i.e. true dark shots with no photons.
+
+      cutoff_multiplier (legacy, relative threshold):
+        threshold = median(sums) - cutoff_multiplier * std(sums)
+        Works well when signal shots are the majority; breaks down when
+        most shots are dark (median ≈ 0 → threshold is negative).
+
+    If both are supplied, min_sum takes precedence.
 
     Parameters from YAML:
-        on: detector key (3D: shots x rows x cols)
-        cutoff_multiplier: std multiplier for threshold (default 1.0)
+        on:                 detector key (3D: shots × rows × cols)
+        min_sum:            absolute ADU floor per shot (default None)
+        cutoff_multiplier:  std multiplier for relative threshold (default 1.0)
     """
     detector_key = kwargs.get("on")
+    min_sum = kwargs.get("min_sum", None)
     cutoff_multiplier = kwargs.get("cutoff_multiplier", 1.0)
     if detector_key is None:
         return
@@ -627,9 +666,12 @@ def hitfinding(run, **kwargs):
         return
 
     sum_images = np.sum(detector, axis=(1, 2))
-    mean_sum = np.median(sum_images)
-    std_sum = np.std(sum_images)
-    threshold = mean_sum - cutoff_multiplier * std_sum
+
+    if min_sum is not None:
+        threshold = float(min_sum)
+    else:
+        threshold = np.median(sum_images) - cutoff_multiplier * np.std(sum_images)
+
     hits = np.where(sum_images > threshold)[0]
 
     if len(hits) == 0:
@@ -639,7 +681,8 @@ def hitfinding(run, **kwargs):
     elif len(hits) < detector.shape[0]:
         setattr(run, detector_key, detector[hits])
     run.update_status(
-        f"Hitfinding on {detector_key}: {len(hits)}/{detector.shape[0]} shots kept (threshold={threshold:.1f})"
+        f"Hitfinding on {detector_key}: {len(hits)}/{detector.shape[0]} shots kept "
+        f"(threshold={threshold:.1f}, mode={'min_sum' if min_sum is not None else 'relative'})"
     )
 
 

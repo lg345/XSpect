@@ -43,6 +43,11 @@ class DetectorKeyConfig:
     rois: list
     combine_rois: bool = True
     transpose: bool = False
+    row_range: "list | None" = None  # [start, end] crop on the row axis at import time
+    # Applied BEFORE any column ROIs.
+    # In the transposed frame (when transpose=True) this
+    # selects rows 170-280 of the (768, 704) array, which
+    # corresponds to slicing axis=2 of the raw HDF5 frame.
 
 
 @dataclass(frozen=True)
@@ -129,6 +134,7 @@ def _parse_data(raw: dict) -> DataConfig:
                     rois=config.get("rois", None),
                     combine_rois=config.get("combine_rois", True),
                     transpose=config.get("transpose", False),
+                    row_range=config.get("row_range", None),
                 )
             )
 

@@ -5,8 +5,12 @@ Iterates over a list of StepConfig entries, looks up each step in the registry,
 and calls it with the run object and the step's YAML arguments.
 """
 
+import logging
+
 from XSpect.analysis.registry import get_step, get_reduction
 from XSpect.controller.config_parser import StepConfig
+
+logger = logging.getLogger("XSpect")
 
 
 def run_pipeline(run, steps: list[StepConfig]) -> None:
@@ -22,10 +26,23 @@ def run_pipeline(run, steps: list[StepConfig]) -> None:
     steps : list[StepConfig]
         Ordered list of steps to execute.
     """
-    for step_config in steps:
+    for i, step_config in enumerate(steps):
         step_fn = get_step(step_config.step)
         run.update_status(f"Running step: {step_config.step}")
-        step_fn(run, **step_config.args)
+        logger.debug(
+            "step %d/%d: %s  args=%s",
+            i + 1,
+            len(steps),
+            step_config.step,
+            step_config.args,
+        )
+        try:
+            step_fn(run, **step_config.args)
+        except Exception:
+            logger.exception(
+                "step %d/%d '%s' FAILED", i + 1, len(steps), step_config.step
+            )
+            raise
         run.update_status(f"Completed step: {step_config.step}")
 
 
