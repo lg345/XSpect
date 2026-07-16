@@ -29,6 +29,8 @@ def enable_logging(level=logging.INFO, log_file=None):
         enable_logging(log_file="xspect.log")     # stderr + file
         enable_logging(log_file="xspect.log", level=logging.DEBUG)
 
+    Safe to call multiple times; it will not add duplicate handlers.
+
     Parameters
     ----------
     level : int
@@ -38,8 +40,6 @@ def enable_logging(level=logging.INFO, log_file=None):
         do NOT inherit this handler, but the main process logs every batch's
         completion, so the file captures full pipeline progress including the
         point of any hang/OOM.
-
-    Safe to call multiple times; it will not add duplicate handlers.
     """
     logger.setLevel(level)
 

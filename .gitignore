@@ -14,3 +14,6 @@ __pycache__/
 
 # Pipeline output data (HDF5 results, large arrays)
 examples/results/
+
+# MkDocs generated site
+site/
