@@ -2,13 +2,11 @@
 name: XSpect-setup-XES
 description: >-
   Set up a new X-ray Emission Spectroscopy (XES) experiment for analysis with
-  XSpect at LCLS. Use when a user wants to start analyzing a new XES beamtime:
-  configuring the LUTE smalldata pipeline, writing the LUTE YAML, writing the
-  XSpect pipeline YAML, and creating diagnostic + analysis notebooks. Handles
-  static XES, time-resolved (ultrafast pump-probe) XES, and CCM-scanned XES.
-  Trigger on: "set up a new XES experiment", "new von Hamos experiment",
-  "configure smalldata for epix XES", "make an XSpect YAML", "analyze Fe Kbeta",
-  "pump-probe XES pipeline".
+  XSpect at LCLS, from LUTE smalldata through the pipeline YAML and notebooks.
+  Handles static, time-resolved (ultrafast pump-probe), CCM-scanned, and droplet
+  photon-counted XES. Trigger on: "set up a new XES experiment", "new von Hamos
+  experiment", "configure smalldata for epix XES", "make an XSpect YAML",
+  "analyze Fe Kbeta", "pump-probe XES pipeline".
 ---
 
 # XSpect: Set Up a New XES Experiment
@@ -245,75 +243,15 @@ coordinates — XSpect auto-translates them to the cropped frame using the recor
 offset. (Implemented in `model/run.py`, `controller/batch_manager.py`,
 `analysis/spectroscopy.py`.)
 
-### Template A — Static XES
+### Pick the template for the Phase 0 experiment type
 
-```yaml
-experiment: {hutch: mfx, experiment_id: <exp>, lcls_run: <N>}
-data:
-  runs: [<run list>]
-  keys:
-    lightStatus/xray: xray
-    lightStatus/laser: laser
-    <ipm_key>: ipm
-  detector_keys:
-    epix100_0/ROI_area: {name: epix, transpose: true, row_range: [<lo>, <hi>]}
-pipeline:
-  - {step: union_shots, on: epix, filter_keys: [xray, xray], new_key: epix}   # xray-only
-  - {step: filter_detector_adu, on: epix, adu_threshold: 3.0}
-  - {step: hitfinding, on: epix, min_sum: 1.0}          # reject dark shots (see note)
-  - {step: reduce_detector_shots, on: epix, reduction: sum, purge: true}
-  - {step: patch_pixels, on: epix_reduced, auto_detect: true, mode: polynomial, axis: 1}
-  - {step: reduce_detector_spatial, on: epix_reduced, rois: [[<ka_lo>, <ka_hi>], [<kb_lo>, <kb_hi>]], combine_rois: false, reduction: sum, axis: 0}
-  - {step: make_energy_axis, detector_key: epix_reduced_ROI_1, n_pixels: <N>, crystal_detector_distance: <mm>, crystal_radius: <mm>, d_spacing: <ang>, mm_per_pixel: 0.05, name: kalpha}
-  - {step: make_energy_axis, detector_key: epix_reduced_ROI_2, n_pixels: <N>, crystal_detector_distance: <mm>, crystal_radius: <mm>, d_spacing: <ang>, mm_per_pixel: 0.05, name: kbeta}
-output: {format: hdf5, path: <experiments/<exp>/results/>}
-```
-`hitfinding min_sum: 1.0` rejects shots with zero signal after the ADU cut
-(useful at reduced rep-rates where many shots are dark). Set `min_sum` higher for
-stricter single-photon selection.
+Read the one matching template, fill the `<...>` placeholders from the recorded
+answers and measured geometry, and skip the rest:
 
-### Template B — Time-resolved / ultrafast pump-probe XES
-
-Add timing and split laser-on / laser-off:
-```yaml
-pipeline:
-  - {step: get_run_shot_properties}          # xray/laser/simultaneous masks
-  - {step: filter_shots, on: simultaneous, filter_key: ipm, threshold: <I0min>}
-  - {step: time_binning, bins: [<t0>, <t1>, <n>], lxt_key: <lxt>, fast_delay_key: <enc>, tt_correction_key: <ttc>}
-  - {step: union_shots, on: epix, filter_keys: [simultaneous, laser], new_key: epix}    # pump-on
-  - {step: reduce_detector_temporal, on: epix_simultaneous_laser, timing_bin_key: timing_bin_indices_simultaneous_laser}
-  - {step: separate_shots, on: epix, filter_keys: [xray, laser], new_key: epix}         # pump-off reference
-  - {step: reduce_detector_temporal, on: epix_xray_not_laser, timing_bin_key: ...}
-reduction:
-  - {step: combine_runs, detector_key: epix_ROI_1, laser_on_suffix: simultaneous_laser, laser_off_suffix: xray_not_laser}
-```
-
-### Template C — CCM-scanned XES / RIXS
-
-```yaml
-pipeline:
-  - {step: make_ccm_axis, energies: [<E0>, <E1>, <n>]}
-  - {step: ccm_binning, ccm_key: <ccm_setpoint>, ccm_bins_key: ccm_bins}
-  - {step: reduce_detector_ccm, on: epix_ROI_1, ccm_bin_key: ccm_bin_indices}   # 1D XAS-like
-  # or reduce_detector_ccm_temporal for a 2D (energy × time) RIXS plane
-```
-
-### Template D — Droplet / photon-counted XES
-
-No `detector_keys` — the image comes from the reconstruction step, which applies
-the ROI **on the sparse arrays** (full panel never allocated). Coordinates are
-full-panel raw (not transposed). See
-`experiments/mfx102101026/mfx102101026_droplet_recon_xes.yaml` and the working
-`examples/mfx101609126_droplet_pershot_xes.yaml`.
-```yaml
-pipeline:
-  - {step: droplet_reconstruction, det: epix100_0, new_key: epix, roi: [<r0>, <r1>, <c0>, <c1>]}
-  - {step: union_shots, on: epix, filter_keys: [xray, xray], new_key: epix}
-  # NO filter_detector_adu — data are photon counts (1,2,3…), an ADU cut zeros signal
-  - {step: reduce_detector_shots, on: epix, reduction: sum, purge: true}
-  - {step: rotate_detector, on: epix_reduced, angle: <deg>, reshape: false}
-  - {step: reduce_detector_spatial, on: epix_reduced, rois: [[<lo>, <hi>]], axis: 1, reduction: sum}
-```
+- **Static XES** → [`templates/static.md`](templates/static.md)
+- **Time-resolved / ultrafast pump-probe** → [`templates/time_resolved.md`](templates/time_resolved.md)
+- **CCM-scanned XES / RIXS** → [`templates/ccm.md`](templates/ccm.md)
+- **Droplet / photon-counted** → [`templates/droplet.md`](templates/droplet.md)
 
 ### Validate the YAML parses
 
@@ -385,21 +323,17 @@ Create notebooks in `experiments/<exp>/`. Model them on the mfx102101026 set:
 
 ## Guardrails
 
-- **Never invent HDF5 keys.** Enumerate the file (Phase 0.5) and map keys to
-  roles from the real datasets. Emission = ePix100 (`epix100_0/1`, `epix_0/1`,
-  variants); scattering = `epix10k2m` / `jungfrau16m` (usually not the signal);
-  I0 = `ipm<N>/sum` in standard hutches but `MfxDg*BmMon/...` at MFX. When a role
-  is ambiguous (0 or >1 candidates), **ask the user** and confirm the mapping
-  before writing YAML.
-- **Never invent step names or parameters.** Read `docs/YAML_PIPELINE_GUIDE.md`
-  and the `XSpect/analysis/*.py` source.
-- **Verify units.** Droplet/ADU vs keV mistakes silently zero all signal. The
-  minimum droplet value equals `thresADU`; a single-photon peak tells you the
-  ADU-per-photon.
-- **Verify the transpose/ROI coordinate frame.** Droplet sparse coords are raw
-  (un-transposed); the XES `ROI_area` path may be transposed. Confirm which frame
-  each ROI is expressed in before trusting a spectrum.
-- **Confirm the run actually has beam** before debugging analysis — check IPM and
-  whether frames are non-zero.
-- Ask the user for geometry/threshold values you cannot measure; do not hardcode
-  guesses without flagging them as TODO in the YAML comments.
+The failure modes that silently produce wrong or empty spectra, each with its
+canonical rule earlier in the skill:
+
+- **HDF5 keys** — enumerate and map to roles, ask when ambiguous (Phase 0.5).
+- **Step names / parameters** — read the guide and `XSpect/analysis/*.py` source
+  (Phase 3), never invent them.
+- **Units** — droplet/ADU vs keV mistakes zero all signal. Minimum droplet value
+  equals `thresADU`; the single-photon peak gives ADU-per-photon (Phase 1c).
+- **Transpose / ROI frame** — droplet sparse coords are raw; the `ROI_area` path
+  may be transposed. Confirm which frame each ROI uses (Phases 2, 3).
+- **Beam present** — check IPM and non-zero frames before debugging analysis
+  (Phase 1d).
+- **Unmeasurable values** — ask for geometry/thresholds you cannot measure; flag
+  any guess as a TODO in the YAML comments.
