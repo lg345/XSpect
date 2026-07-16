@@ -39,7 +39,9 @@ Before anything else, establish what kind of XES this is. Ask:
 
 2. **Experiment identity:** hutch (mfx/xcs/xpp/...), experiment_id, LCLS run number, and the run numbers to analyze.
 
-3. **Detector(s):** which area detector holds the emission (e.g. `epix100_0`, `epix_1`, `Epix10k2M`)? Are there multiple (e.g. a spectrometer + a SEER incident monitor)?
+3. **Detector(s):** which area detector holds the emission? (See Phase 0.5 for
+   how to identify it from the HDF5.) Are there multiple (e.g. a spectrometer +
+   a SEER incident monitor)?
 
 4. **Spectrometer geometry:** von Hamos? Which analyzer crystal(s), radius, d-spacing? Which emission line(s) (Fe Kα ~6404 eV, Fe Kβ ~7058 eV, etc.)? Is the dispersion along detector rows or columns?
 
@@ -48,6 +50,70 @@ Before anything else, establish what kind of XES this is. Ask:
 Record the answers — they drive every later choice. If the user doesn't know
 the detector/geometry yet, that's fine: the diagnostic notebook (Phase 4) is
 built precisely to discover ROIs and geometry from the first run.
+
+---
+
+## Phase 0.5 — Identify the HDF5 keys (do this early, ask when ambiguous)
+
+Never guess dataset paths. Open the smalldata file and enumerate the keys, then
+map them to roles. **If more than one candidate fits a role, ask the user which
+to use — do not pick silently.**
+
+```python
+import h5py
+f = h5py.File(SMD_FILE, "r")
+top = list(f.keys())                                  # detectors + diagnostic groups
+print("top-level:", top)
+for g in top:                                          # inspect a detector/group
+    if isinstance(f[g], h5py.Group):
+        print(g, "->", list(f[g].keys()))
+```
+
+### Role → naming conventions (LCLS)
+
+**Emission / spectroscopy detector (the XES signal).**
+Almost always an **ePix100**. The group name varies by experiment:
+`epix100_0`, `epix100_1`, `epix_0`, `epix_1`, `epix_alc_0`, `epix_ladm_1`, and
+similar variants. The per-shot 2D data is under `<det>/ROI_area` (or a numbered
+ROI like `<det>/ROI_0_area`). If there are two ePix100s, one is often the
+spectrometer and the other a **SEER** incident-energy monitor — **ask which is
+which**; don't assume `_0` is the spectrometer.
+
+**Scattering / imaging detector (usually NOT the XES signal).**
+Large-area **`epix10k2m`** (a.k.a. Epix10k2M) or **`jungfrau16m`** (Jungfrau
+16M). If one of these is present alongside an ePix100, the ePix100 is almost
+certainly the emission detector; confirm with the user before excluding the big
+detector.
+
+**Normalization / beam-intensity monitor ("IPM").**
+Standard hutches use `ipm<N>/sum` (e.g. `ipm4/sum`, `ipm5/sum`) plus
+`ipm<N>/xpos`, `ipm<N>/ypos`. **MFX uses non-standard names** — commonly a beam
+monitor like `MfxDg2BmMon/totalIntensityJoules` (also `MfxDg1BmMon/...`,
+`MfxDg2Imp/...`). If you see an `MfxDg*BmMon` group, that's the I0 monitor. When
+several intensity-like keys exist, ask which the user normalizes to.
+
+**Light-status masks (shot classification).** `lightStatus/xray`,
+`lightStatus/laser` — used to build xray / laser / simultaneous masks.
+
+**Timing (time-resolved only).** Laser delay stage (`lxt`, `lxt_ttc`, `enc/...`
+encoder) and timetool correction (`tt/ttCorr`, `tt/FLTPOS_PS`, or similar). Names
+vary a lot — enumerate and ask.
+
+**Scan variable (CCM / RIXS).** Channel-cut mono setpoint, often `ccm/E`,
+`epics/ccmE`, `scan/ccm_E`, or an EPICS-archived PV. Confirm which key holds the
+incident energy.
+
+**Detector geometry PVs (von Hamos).** Crystal motor readbacks appear as
+archived EPICS PVs (e.g. `MFX:SPEC:C1:TILT.RBV`, `...:X.RBV`, `...:ROT.RBV`).
+Useful for recording geometry; not required for the pipeline.
+
+### Ambiguity protocol
+
+When a role has 0 or >1 clear candidates:
+- **0 candidates** — tell the user the role's data seems absent; ask for the key
+  or whether that step should be skipped (e.g. no timetool ⇒ no time-resolved).
+- **>1 candidates** — list them with their shapes/dtypes and ask the user to pick.
+- Echo back the final key→role mapping for confirmation before writing any YAML.
 
 ---
 
@@ -319,6 +385,12 @@ Create notebooks in `experiments/<exp>/`. Model them on the mfx102101026 set:
 
 ## Guardrails
 
+- **Never invent HDF5 keys.** Enumerate the file (Phase 0.5) and map keys to
+  roles from the real datasets. Emission = ePix100 (`epix100_0/1`, `epix_0/1`,
+  variants); scattering = `epix10k2m` / `jungfrau16m` (usually not the signal);
+  I0 = `ipm<N>/sum` in standard hutches but `MfxDg*BmMon/...` at MFX. When a role
+  is ambiguous (0 or >1 candidates), **ask the user** and confirm the mapping
+  before writing YAML.
 - **Never invent step names or parameters.** Read `docs/YAML_PIPELINE_GUIDE.md`
   and the `XSpect/analysis/*.py` source.
 - **Verify units.** Droplet/ADU vs keV mistakes silently zero all signal. The
