@@ -1,9 +1,13 @@
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.widgets import SpanSelector
+import ipywidgets as widgets
+from IPython.display import display
 from scipy.ndimage import  rotate
 from scipy.interpolate import interp1d
 from scipy.optimize import curve_fit,minimize
+from scipy.signal import savgol_filter
 import multiprocessing
 import os
 from functools import partial
@@ -12,6 +16,7 @@ import sys
 import argparse
 from datetime import datetime
 import tempfile
+
 class experiment:
     def __init__(self, lcls_run, hutch, experiment_id):
         """
@@ -310,19 +315,22 @@ class SpectroscopyAnalysis:
             The key for which unique values are to be binned.
         """
         vals = getattr(run,key)
-        bins = np.unique(vals)
-        addon = (bins[-1] - bins[-2])/2 # add on energy 
-        bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
-        bins_center = np.empty_like(bins2)
-        for ii in np.arange(bins.shape[0]):
-            if ii == 0:
-                bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
-            else:
-                bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
-        bins_center[-1] = bins2[-1]
+        run.scanvar_bins = np.unique(vals)
+        bins_centered, run.scanvar_indices = self.center_binning(vals, run.scanvar_bins)
+        run.scanvar_indices = run.scanvar_indices - 1
 
-        setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
-        setattr(run,'scanvar_bins',bins_center)
+        # addon = (bins[-1] - bins[-2])/2 # add on energy 
+        # bins2 = np.append(bins,bins[-1]+addon) # elist2 will be elist with dummy value at end
+        # bins_center = np.empty_like(bins2)
+        # for ii in np.arange(bins.shape[0]):
+        #     if ii == 0:
+        #         bins_center[ii] = bins2[ii] - (bins2[ii+1] - bins2[ii])/2
+        #     else:
+        #         bins_center[ii] = bins2[ii] - (bins2[ii] - bins2[ii-1])/2
+        # bins_center[-1] = bins2[-1]
+
+        # setattr(run,'scanvar_indices',np.digitize(vals,bins_center))
+        # setattr(run,'scanvar_bins',bins_center)
     
     def filter_shots(self, run,shot_mask_key, filter_key='ipm', threshold=1.0E4):
         """
@@ -653,7 +661,7 @@ class SpectroscopyAnalysis:
         if not all(x > 0.001 for x in [a, b, c]):
             run.update_status('------Timing data values are either very small or zero. Confirm the units and keys are correct-----\n-----Mean abs value of: lxt_key: %f, fast_delay: %f, tt_correction: %f -----' % (a, b, c))
         # Generate delays, time_bins and binning
-        delays = np.array(getattr(run,lxt_key)).flatten() + np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
+        delays = np.array(getattr(run,lxt_key)*(1e12)).flatten() + np.array(getattr(run,fast_delay_key)).flatten()  + np.array(getattr(run,tt_correction_key)).flatten()
 
         run.delays=delays
         run.time_bins=bins
@@ -781,13 +789,7 @@ class SpectroscopyAnalysis:
             np.add.at(reduced_array, indices, detector)
 
         for i in np.arange(expected_length):
-            # datpoints[i] = detector[indices == i][:]
-            # datmeans[i] = np.nanmean(detector[indices ==  i][:], axis = 0)\
-            # print(detector[indices == i][:].shape)
             reduced_std[i] = np.nanstd(detector[indices == i][:], axis = 0)
-            # if counts[i] == 0:
-            #     print(i, run.time_bins[i])
-            # reduced_std[i] = np.nansum(detector[indices == i][:], axis = 0)
             
         setattr(run, detector_key+'_time_binned', reduced_array)
         setattr(run, detector_key+'_bincount', counts)
@@ -1056,7 +1058,7 @@ class XESAnalysis(SpectroscopyAnalysis):
         # Initialize reduced_array with the correct shape (number of bins, 699, 50)
         reduced_array = np.zeros((n_bins, detector.shape[1], detector.shape[2]))
 
-        # Iterate over the images and accumulate them into reduced_array based on timing_indices
+        # Iterate over the images and accumulate them into reduced_array based on scanvar_indices
         for i in range(detector.shape[0]):
             np.add.at(reduced_array, (scanvar_indices[i],), detector[i])
 
@@ -1192,11 +1194,25 @@ class XASAnalysis(SpectroscopyAnalysis):
         detector = getattr(run, detector_key)
         timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
         ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros((np.shape(run.time_bins)[0]+1, np.shape(run.ccm_bins)[0]))
-        unique_indices =np.column_stack((timing_indices, ccm_indices))
+        reduced_array = np.zeros((np.shape(run.time_bins)[0], np.shape(run.ccm_bins)[0]))
+        reduced_std = np.zeros_like(reduced_array)
+        
+        unique_indices = np.column_stack((timing_indices, ccm_indices))
+
+        counts = np.zeros_like(reduced_array)
+        for ii in np.arange(reduced_array.shape[0]):
+            for jj in np.arange(reduced_array.shape[1]):
+                mask = (timing_indices == ii) & (ccm_indices == jj)
+                reduced_std[ii,jj] = np.nanstd(detector[mask], axis = 0)
+                counts[ii,jj] = np.nansum(mask)
+
         np.add.at(reduced_array, (unique_indices[:, 0], unique_indices[:, 1]), detector)
-        reduced_array = reduced_array[:-1,:]
+
+        
         setattr(run, detector_key+'_time_energy_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
+        
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_energy_binned') )
         
     def reduce_detector_ccm(self, run, detector_key, ccm_bin_key_indices, average = False, not_ccm=False):
@@ -1219,13 +1235,32 @@ class XASAnalysis(SpectroscopyAnalysis):
         """
         detector = getattr(run, detector_key)
         
-        ccm_indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
+        indices = getattr(run, ccm_bin_key_indices)#digitized indices from detector
         if not_ccm:
-            reduced_array = np.zeros(np.max(ccm_indices)+1 )
+            reduced_array = np.zeros(np.max(indices)+1 )
         else:
             reduced_array = np.zeros(np.shape(run.ccm_bins)[0]) 
-        np.add.at(reduced_array, ccm_indices, detector)
+        reduced_std = np.zeros_like(reduced_array)
+        counts = np.zeros_like(reduced_array)
+        
+        # np.add.at(reduced_array, ccm_indices, detector)
+        if average:
+            np.add.at(reduced_array, indices, detector)
+            reduced_array /= counts[:, None]
+        else:
+            np.add.at(reduced_array, indices, detector)
+            
+        # counts = np.bincount(indices)
+    
+        for i in np.arange(reduced_std.shape[0]):
+            mask = (indices == i)
+            reduced_std[i] = np.nanstd(detector[mask][:], axis = 0)
+            counts[i] = np.nansum(mask)
+
+            
         setattr(run, detector_key+'_energy_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
         
         run.update_status('Detector %s binned in energy into key: %s'%(detector_key,detector_key+'_energy_binned') )
         
@@ -1246,14 +1281,32 @@ class XASAnalysis(SpectroscopyAnalysis):
         """
         detector = getattr(run, detector_key)
         time_bins=run.time_bins
-        timing_indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
-        reduced_array = np.zeros(np.shape(time_bins)[0]+1)
-        print(reduced_array.shape)
-        np.add.at(reduced_array, timing_indices, detector)
+        indices = getattr(run, timing_bin_key_indices)#digitized indices from detector
+        reduced_array = np.zeros(np.shape(time_bins)[0])
+        np.add.at(reduced_array, indices, detector)
+
+        reduced_std = np.zeros_like(reduced_array)
+        counts = np.zeros_like(reduced_array)
+
+        # counts = np.bincount(indices)
+        if average:
+            np.add.at(reduced_array, indices, detector)
+            reduced_array /= counts[:, None]
+        else:
+            np.add.at(reduced_array, indices, detector)
+
+        expected_length = len(run.time_bins)
+        for i in np.arange(expected_length):
+            mask = (indices == i)
+            reduced_std[i] = np.nanstd(detector[indices == i][:], axis = 0)
+            counts[i] = np.nansum(mask)
+
         setattr(run, detector_key+'_time_binned', reduced_array)
+        setattr(run, detector_key+'_bincount', counts)
+        setattr(run, detector_key+'_std',reduced_std)
         run.update_status('Detector %s binned in time into key: %s'%(detector_key,detector_key+'_time_binned') )
         
-    def ccm_binning(self,run,ccm_bins_key,ccm_key='ccm'):
+    def ccm_binning(self,run,ccm_bins,ccm_key='ccm'):
         """
         Generate CCM bin indices from CCM data and bins.
 
@@ -1266,10 +1319,16 @@ class XASAnalysis(SpectroscopyAnalysis):
         ccm_key : str, optional
             The key corresponding to the CCM data (default is 'ccm').
         """
-        ccm=getattr(run,ccm_key)
-        bins=getattr(run,ccm_bins_key)
-        run.ccm_bin_indices=np.digitize(ccm, bins)
-        run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+        # ccm=getattr(run,ccm_key)
+        # bins=getattr(run,ccm_bins_key)
+        # run.ccm_bin_indices=np.digitize(ccm, bins)
+        run.ccm_bins = ccm_bins
+        ccm = getattr(run, ccm_key)
+        ccm_bins_centered, run.ccm_bin_indices = self.center_binning(ccm, run.ccm_bins)
+        run.ccm_bin_indices = run.ccm_bin_indices - 1
+        
+        # run.update_status('Generated ccm bins from %f to %f in %d steps.' % (np.min(bins),np.max(bins),len(bins)))
+        run.update_status('Generated ccm bins.')
 
 class vonHamos:
     def __init__(self):
@@ -1313,3 +1372,223 @@ class vonHamos:
         dspacing = self.dspacing(crystal, h, k, l)
         energy = conversion_factor/(2*dspacing*np.sin(np.arctan((2*crystal_radius)/(d_rel + avg_detector_distance))))
         return energy
+
+class SpectrumDerivativeAnalyzer(vonHamos):
+    def __init__(self, xtal_dict, y_data, smooth_window=11, poly_order=3, ref_energy = None):
+        """
+        Interactive spectrum analyzer for finding derivative zero crossings.
+        
+        Parameters:
+        -----------
+        x_data : array-like
+            X-values of the spectrum
+        y_data : array-like
+            Y-values of the spectrum
+        smooth_window : int
+            Window length for Savitzky-Golay smoothing (must be odd)
+        poly_order : int
+            Polynomial order for Savitzky-Golay smoothing
+        """
+
+        self.crystal = xtal_dict['crystal']
+        self.h = xtal_dict['h']
+        self.k = xtal_dict['k']
+        self.l = xtal_dict['l']
+        self.d_space = self.dspacing(self.crystal, self.h, self.k, self.l)
+        
+        self.crystal_radius = xtal_dict['radius']
+        detector_distance = xtal_dict['detector_distance']*2
+
+        # conversion_factor = 12398.419 # eV - Angstrom
+        conversion_factor = 12398 # eV - Angstrom
+        n_pix = np.arange(y_data.shape[0]) # pixel index
+        pixel_width = 0.05
+        self.d_rel = n_pix*pixel_width - (np.max(n_pix*pixel_width) - np.min(n_pix*pixel_width))/2 # relative distance from center of detector
+        x_data = conversion_factor/(2*self.d_space*np.sin(np.arctan((2*self.crystal_radius)/(self.d_rel + detector_distance))))
+
+        if ref_energy is not None:
+            self.ref_energy = ref_energy
+        else:
+            self.ref_energy = None
+        
+        self.x_data = np.array(x_data)
+        self.y_data = np.array(y_data)
+        self.smooth_window = smooth_window
+        self.poly_order = poly_order
+        
+        # Store selected region
+        self.x_min = None
+        self.x_max = None
+        
+        self.zero_crossing = None
+        
+        # Setup the figure
+        self.setup_plot()
+        
+    def setup_plot(self):
+        """Initialize the interactive plot"""
+        self.fig, (self.ax1, self.ax2) = plt.subplots(2, 1, figsize=(10, 8))
+        self.fig.suptitle('Interactive Spectrum Derivative Analyzer', fontsize=14)
+        
+        # Plot original spectrum
+        self.line_spectrum, = self.ax1.plot(self.x_data, self.y_data, 'k-', label='Spectrum')
+        if self.ref_energy is not None:
+            self.ax1.axvline(self.ref_energy, color = 'r', linestyle = '--', label = 'Ref Energy: %.2f' % (self.ref_energy))
+        self.ax1.set_xlim([np.nanmin(self.x_data), np.nanmax(self.x_data)])
+        self.ax1.set_xlabel('X')
+        self.ax1.set_ylabel('Y')
+        self.ax1.set_title('Original Spectrum (Click and Drag to Select Region)')
+        self.ax1.grid(True, alpha=0.3)
+        self.ax1.legend()
+        
+        # Setup derivative plot
+        self.ax2.set_xlim([np.nanmin(self.x_data), np.nanmax(self.x_data)])
+        self.ax2.set_xlabel('X')
+        self.ax2.set_ylabel('dY/dX')
+        self.ax2.set_title('Derivative (Zero Crossings)')
+        self.ax2.grid(True, alpha=0.3)
+        
+        # Add span selector for region selection
+        self.span = SpanSelector(
+            self.ax1,
+            self.on_select,
+            'horizontal',
+            useblit=True,
+            props=dict(alpha=0.3, facecolor='red'),
+            interactive=True,
+            drag_from_anywhere=True
+        )
+        
+        # Initialize plot elements
+        self.line_derivative = None
+        self.line_zero = None
+        self.scatter_zero = None
+        self.vline_spectrum = None
+        
+        # Info text widget
+        self.info_output = widgets.Output()
+        
+        plt.tight_layout()
+        
+    def on_select(self, xmin, xmax):
+        """Callback for region selection"""
+        self.x_min = xmin
+        self.x_max = xmax
+        
+        # Calculate derivative and find zero crossing
+        self.calculate_derivative()
+        self.find_zero_crossing()
+        self.update_plot()
+        if self.zero_crossing is not None:
+            self.correct_energy_to_ref(self.ref_energy)
+        self.display_info()
+        
+    def calculate_derivative(self):
+        """Calculate derivative in selected region"""
+        # Get indices for selected region
+        mask = (self.x_data >= self.x_min) & (self.x_data <= self.x_max)
+        self.x_selected = self.x_data[mask]
+        self.y_selected = self.y_data[mask]
+        
+        if len(self.x_selected) < self.smooth_window:
+            self.derivative = np.gradient(self.y_selected, self.x_selected)
+        else:
+            # Smooth the data using Savitzky-Golay filter
+            y_smooth = savgol_filter(self.y_selected, 
+                                    min(self.smooth_window, len(self.y_selected) - 1 if len(self.y_selected) % 2 == 0 else len(self.y_selected)),
+                                    self.poly_order)
+            # Calculate derivative
+            self.derivative = np.gradient(y_smooth, self.x_selected)
+    
+    def find_zero_crossing(self):
+        """Find zero crossing point in derivative"""
+        self.zero_crossing = None
+        self.zero_crossing_y = None
+        
+        # Find sign changes
+        sign_changes = np.where(np.diff(np.sign(self.derivative)))[0]
+        
+        if len(sign_changes) > 0:
+            # Use the first zero crossing (you can modify this logic)
+            idx = sign_changes[0]
+            
+            # Linear interpolation for more accurate zero crossing
+            x1, x2 = self.x_selected[idx], self.x_selected[idx + 1]
+            y1, y2 = self.derivative[idx], self.derivative[idx + 1]
+            
+            # Find x where derivative crosses zero
+            self.zero_crossing = x1 - y1 * (x2 - x1) / (y2 - y1)
+            
+            # Get corresponding y-value from original spectrum
+            interp_func = interp1d(self.x_selected, self.y_selected, kind='cubic')
+            self.zero_crossing_y = interp_func(self.zero_crossing)
+    
+    def update_plot(self):
+        """Update the plots with derivative and zero crossing"""
+        # Clear previous derivative plot
+        self.ax2.clear()
+        self.ax2.set_xlabel('X')
+        self.ax2.set_ylabel('dY/dX')
+        self.ax2.set_title('Derivative (Zero Crossings)')
+        self.ax2.grid(True, alpha=0.3)
+        
+        # Plot derivative
+        self.ax2.plot(self.x_selected, self.derivative, 'k-', label='Derivative')
+        self.ax2.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+        
+        # Plot zero crossing on derivative
+        if self.zero_crossing is not None:
+            deriv_interp = interp1d(self.x_selected, self.derivative, kind='linear')
+            self.ax2.scatter([self.zero_crossing], [0], 
+                           color='red', s=100, zorder=5, 
+                           label=f'Zero Crossing: x={self.zero_crossing:.4f}')
+            
+            # Add vertical line on spectrum plot
+            if self.vline_spectrum is not None:
+                self.vline_spectrum.remove()
+            self.vline_spectrum = self.ax1.axvline(x=self.zero_crossing, 
+                                                   color='red', 
+                                                   linestyle='--', 
+                                                   linewidth=2,
+                                                   label=f'Zero at x={self.zero_crossing:.4f}')
+            
+            # Add point on spectrum
+            self.ax1.scatter([self.zero_crossing], [self.zero_crossing_y], 
+                           color='red', s=100, zorder=5)
+        
+        self.ax2.legend()
+        self.ax1.legend()
+        self.fig.canvas.draw_idle()
+    
+    def display_info(self):
+        """Display information about the analysis"""
+        with self.info_output:
+            self.info_output.clear_output(wait=True)
+            print("="*50)
+            print("ANALYSIS RESULTS")
+            print("="*50)
+            print(f"Selected Region: [{self.x_min:.4f}, {self.x_max:.4f}]")
+            print(f"Number of points: {len(self.x_selected)}")
+            
+            if self.zero_crossing is not None:
+                print(f"\n🎯 Zero Crossing Found!")
+                print(f"   X-value: {self.zero_crossing:.6f}")
+                print(f"   Y-value: {self.zero_crossing_y:.6f}")
+                print(f"   Corrected detector distance: {self.corrected_distance:.6f}")
+            else:
+                print("\n❌ No zero crossing found in selected region")
+            print("="*50)
+
+    def correct_energy_to_ref(self, reference_energy):
+        self.zero_crossing_indx = np.argmin(np.abs(self.x_data - self.zero_crossing))
+        # conversion_factor = 12398.419 # eV - Angstrom
+        conversion_factor = 12398 # eV - Angstrom
+        self.corrected_distance = self.crystal_radius/np.tan(np.arcsin(conversion_factor/(reference_energy*2*self.d_space))) - self.d_rel[self.zero_crossing_indx]/2
+        self.corrected_energy_axis = self.vH_energy_axis(self.corrected_distance*2, self.y_data.shape[0], self.crystal, self.h, self.k, self.l, self.crystal_radius, pixel_width = 0.05)
+
+        return self.corrected_distance, self.corrected_energy_axis
+    
+    def show(self):
+        """Display the interactive widget"""
+        display(self.info_output)
+        plt.show()
