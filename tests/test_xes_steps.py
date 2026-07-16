@@ -176,3 +176,56 @@ class TestPatchPixels:
         patched = run.spectrum_auto_patched_pixels + run.spectrum_manual_patched_pixels
         assert 10 in run.spectrum_manual_patched_pixels
         assert 50 in run.spectrum_auto_patched_pixels
+
+
+class TestFilterDetectorVariance:
+    def test_removes_constant_pixels_2d(self):
+        """Constant (zero-variance) pixels are zeroed; varying pixels kept."""
+        run = MockRun()
+        np.random.seed(0)
+        # 50 shots x 20 pixels; columns 5 and 12 are constant (dead/hot)
+        data = np.random.poisson(100, (50, 20)).astype(float)
+        data[:, 5] = 42.0
+        data[:, 12] = 0.0
+        run.det = data
+        step = get_step("filter_detector_variance")
+        step(run, on="det", variance_threshold=0.0)
+        result = run.det
+        # Constant columns zeroed
+        assert np.all(result[:, 5] == 0.0)
+        assert np.all(result[:, 12] == 0.0)
+        # A high-variance column survives unchanged
+        assert np.any(result[:, 0] != 0.0)
+
+    def test_mask_stored_and_shape_preserved(self):
+        """Output keeps original shape; retained mask stored with pixel shape."""
+        run = MockRun()
+        np.random.seed(1)
+        data = np.random.poisson(50, (30, 8, 8)).astype(float)
+        data[:, 3, 4] = 7.0  # one constant pixel
+        run.epix = data
+        step = get_step("filter_detector_variance")
+        step(run, on="epix", variance_threshold=0.0)
+        assert run.epix.shape == (30, 8, 8)
+        assert run.epix_variance_mask.shape == (8, 8)
+        assert run.epix_variance_mask[3, 4] == False
+        assert np.all(run.epix[:, 3, 4] == 0.0)
+
+    def test_threshold_drops_low_variance(self):
+        """A higher threshold removes low- but nonzero-variance pixels too."""
+        run = MockRun()
+        rng = np.random.default_rng(2)
+        data = rng.normal(100.0, 10.0, (200, 10))
+        data[:, 4] = rng.normal(100.0, 0.01, 200)  # tiny variance
+        run.det = data
+        step = get_step("filter_detector_variance")
+        step(run, on="det", variance_threshold=1.0)
+        assert np.all(run.det[:, 4] == 0.0)
+        assert np.any(run.det[:, 0] != 0.0)
+
+    def test_missing_key_is_noop(self):
+        run = MockRun()
+        step = get_step("filter_detector_variance")
+        step(run, on="nonexistent")  # should not raise
+        step(run)  # no 'on' key
+        assert not hasattr(run, "nonexistent")

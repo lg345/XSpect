@@ -138,6 +138,16 @@ reduction:
 |------|-----------|-------------|
 | `filter_shots` | `on`, `filter_key`, `threshold` | Zero out shots below threshold (or outside range if threshold is [min, max]) |
 | `filter_detector_adu` | `on`, `adu_threshold` | Zero detector pixels below ADU threshold |
+| `filter_detector_variance` | `on`, `variance_threshold` | Zero low-variance detector pixels using sklearn `VarianceThreshold`. Data-driven alternative to `filter_detector_adu` — no ADU cutoff to hand-tune |
+
+`filter_detector_variance` computes each pixel's variance across shots and zeros the pixels that barely change (dead pixels, static hot pixels, constant background). Signal-bearing pixels vary shot to shot and are kept. It writes back to the same detector key and stores the retained boolean mask as `<on>_variance_mask` for inspection. `variance_threshold` defaults to `0.0` (removes only constant pixels); raise it to drop low- but nonzero-variance pixels.
+
+```yaml
+# Data-driven alternative to filter_detector_adu
+- step: filter_detector_variance
+  on: epix_ROI_1
+  variance_threshold: 0.01
+```
 
 ### Shot Combination
 

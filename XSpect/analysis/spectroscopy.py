@@ -119,6 +119,56 @@ def filter_detector_adu(run, **kwargs):
     run.update_status(f"ADU filtered {detector_key} with threshold {adu_threshold}")
 
 
+@register_step("filter_detector_variance")
+def filter_detector_variance(run, **kwargs):
+    """Zero out low-variance detector pixels using sklearn VarianceThreshold.
+
+    Data-driven alternative to filter_detector_adu: instead of a hand-tuned
+    intensity cutoff, pixels whose value barely changes across shots (dead
+    pixels, static hot pixels, constant background) are dropped. Signal-bearing
+    pixels vary shot to shot and are retained.
+
+    Parameters from YAML:
+        on: detector key
+        variance_threshold: float (default 0.0). Pixels with variance <= this
+            across shots are zeroed. 0.0 removes only constant pixels.
+
+    Detector data is treated as (shots, features): a 3D array
+    (shots x rows x cols) is flattened per shot, filtered, then reshaped back.
+    Writes the filtered array back to detector_key and stores the retained
+    boolean mask as <detector_key>_variance_mask.
+    """
+    from sklearn.feature_selection import VarianceThreshold
+
+    detector_key = kwargs.get("on")
+    variance_threshold = kwargs.get("variance_threshold", 0.0)
+    if detector_key is None:
+        return
+
+    detector_images = getattr(run, detector_key, None)
+    if detector_images is None:
+        return
+
+    detector_images = np.asarray(detector_images)
+    original_shape = detector_images.shape
+    n_shots = original_shape[0]
+    flat = detector_images.reshape(n_shots, -1)
+
+    selector = VarianceThreshold(threshold=variance_threshold)
+    selector.fit(flat)
+    keep_mask = selector.get_support()
+
+    filtered = flat * keep_mask  # broadcast over shots, zero the dropped pixels
+    setattr(run, detector_key, filtered.reshape(original_shape))
+    setattr(run, f"{detector_key}_variance_mask", keep_mask.reshape(original_shape[1:]))
+
+    n_removed = int(np.sum(~keep_mask))
+    run.update_status(
+        f"Variance filtered {detector_key} (threshold={variance_threshold}): "
+        f"{n_removed}/{keep_mask.size} pixels zeroed"
+    )
+
+
 @register_step("find_rotation_angle")
 def find_rotation_angle(run, **kwargs):
     """Auto-detect the tilt angle of a dispersed spectral signal.
