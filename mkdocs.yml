@@ -11,21 +11,23 @@ not_in_nav: |
 nav:
   - Home: index.md
   - Overview: Overview.md
-  - YAML pipeline guide: YAML_PIPELINE_GUIDE.md
-  - Step reference:
-    - Overview: steps/index.md
-    - Loading & filtering: steps/loading_filtering.md
-    - Detector & spatial: steps/detector.md
-    - Binning: steps/binning.md
-    - Spectra & reductions: steps/spectra.md
-  - Examples:
+  - YAML pipeline:
+    - Guide: YAML_PIPELINE_GUIDE.md
+    - Example configs: example_configs.md
+    - Step reference:
+      - Overview: steps/index.md
+      - Loading & filtering: steps/loading_filtering.md
+      - Detector & spatial: steps/detector.md
+      - Binning: steps/binning.md
+      - Spectra & reductions: steps/spectra.md
+    - Source:
+      - Model: source_model.md
+      - Controller: source_controller.md
+      - Analysis steps: source_analysis.md
+  - Getting started:
     - XAS: Getting_started_XAS.md
     - XES: Getting_started_XES.md
     - Post-processing: Post_Processing.md
-  - Source (YAML pipeline):
-    - Model: source_model.md
-    - Controller: source_controller.md
-    - Analysis steps: source_analysis.md
   - Source (legacy):
     - XSpect_Analysis: XSpect_Analysis.md
     - XSpect_Controller: XSpect_Controller.md
@@ -48,7 +50,9 @@ markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - admonition
   - pymdownx.arithmatex:
       generic: true
