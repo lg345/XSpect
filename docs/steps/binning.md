@@ -24,6 +24,11 @@ Compute per-shot delays from laser timing keys and lay down delay bins.
 | `tt_correction_key` | `"time_tool_correction"` | time-tool jitter correction key |
 | `resolution` | `50e-15` | bin width in seconds for `bins: auto` |
 
+```yaml
+- step: time_binning
+  bins: [-1e-12, 5e-12, 25]
+```
+
 ### `make_ccm_axis`
 Build incident-energy (CCM) bin edges and centers for an XAS scan.
 
@@ -37,6 +42,11 @@ Build incident-energy (CCM) bin edges and centers for an XAS scan.
 | `ccm_key` | `"ccm"` | per-shot incident-energy key |
 | `resolution` | `0.001` | bin width (keV) for `energies: auto` |
 
+```yaml
+- step: make_ccm_axis
+  energies: [7.10, 7.15, 51]
+```
+
 ### `ccm_binning`
 Assign each shot to a CCM energy bin.
 
@@ -49,6 +59,12 @@ Assign each shot to a CCM energy bin.
 | `ccm_key` | `"ccm"` | per-shot incident-energy key |
 | `ccm_bins_key` | `"ccm_bins"` | edges produced by `make_ccm_axis` |
 
+```yaml
+- step: ccm_binning
+  ccm_key: ccm
+  ccm_bins_key: ccm_bins
+```
+
 ### `bin_uniques`
 Bin an arbitrary scan variable by its unique values (one bin per value).
 
@@ -59,6 +75,11 @@ Bin an arbitrary scan variable by its unique values (one bin per value).
 | name | default | description |
 |------|---------|-------------|
 | `on` | required | per-shot scan variable to bin |
+
+```yaml
+- step: bin_uniques
+  on: sample_temperature
+```
 
 ### `make_energy_axis`
 Convert pixel index to emission energy from von Hamos crystal geometry.
@@ -76,6 +97,15 @@ Convert pixel index to emission energy from von Hamos crystal geometry.
 | `n_pixels` | `None` | pixel count; overrides `detector_key` |
 | `mm_per_pixel` | `0.05` | pixel pitch (mm) |
 | `name` | `"xes"` | output prefix, so the axis is `<name>_energy` |
+
+```yaml
+- step: make_energy_axis
+  detector_key: epix
+  crystal_detector_distance: 100.0
+  crystal_radius: 500.0
+  d_spacing: 1.6375
+  name: xes
+```
 
 ## Binned reductions
 
@@ -97,6 +127,12 @@ Bin a per-shot spectrum along delay.
 | `timing_bin_key` | `"timing_bin_indices"` | bin-index attribute |
 | `average` | `False` | divide each bin by its shot count |
 
+```yaml
+- step: reduce_detector_temporal
+  on: epix_ROI_1_simultaneous_laser
+  average: true
+```
+
 ### `reduce_detector_ccm`
 Bin a per-shot spectrum along incident energy.
 
@@ -109,6 +145,12 @@ Bin a per-shot spectrum along incident energy.
 | `on` | required | detector key |
 | `ccm_bin_key` | `"ccm_bin_indices"` | bin-index attribute |
 | `average` | `False` | divide each bin by its shot count |
+
+```yaml
+- step: reduce_detector_ccm
+  on: epix_ROI_1
+  average: true
+```
 
 ### `reduce_detector_ccm_temporal`
 Bin a per-shot spectrum along both delay and incident energy (2D map).
@@ -125,3 +167,9 @@ Bin a per-shot spectrum along both delay and incident energy (2D map).
 | `timing_bin_key` | `"timing_bin_indices"` | delay bin-index attribute |
 | `ccm_bin_key` | `"ccm_bin_indices"` | energy bin-index attribute |
 | `average` | `False` | divide each bin by its shot count |
+
+```yaml
+- step: reduce_detector_ccm_temporal
+  on: epix_ROI_1
+  average: true
+```
