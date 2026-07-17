@@ -12,6 +12,12 @@ nav:
   - Home: index.md
   - Overview: Overview.md
   - YAML pipeline guide: YAML_PIPELINE_GUIDE.md
+  - Step reference:
+    - Overview: steps/index.md
+    - Loading & filtering: steps/loading_filtering.md
+    - Detector & spatial: steps/detector.md
+    - Binning: steps/binning.md
+    - Spectra & reductions: steps/spectra.md
   - Examples:
     - XAS: Getting_started_XAS.md
     - XES: Getting_started_XES.md
