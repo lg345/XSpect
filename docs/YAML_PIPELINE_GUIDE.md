@@ -139,6 +139,7 @@ reduction:
 | `filter_shots` | `on`, `filter_key`, `threshold` | Zero out shots below threshold (or outside range if threshold is [min, max]) |
 | `filter_detector_adu` | `on`, `adu_threshold` | Zero detector pixels below ADU threshold |
 | `filter_detector_variance` | `on`, `variance_threshold` | Zero low-variance detector pixels using sklearn `VarianceThreshold`. Data-driven alternative to `filter_detector_adu` — no ADU cutoff to hand-tune |
+| `common_mode_correction` | `on`, `axis`, `method`, `reference`, `bank_size` | Subtract per-row, per-column, or per-bank electronic baseline estimated from a signal-free reference band. Runs on 3D detector data before shot reduction; preserves shape |
 
 `filter_detector_variance` computes each pixel's variance across shots and zeros the pixels that barely change (dead pixels, static hot pixels, constant background). Signal-bearing pixels vary shot to shot and are kept. It writes back to the same detector key and stores the retained boolean mask as `<on>_variance_mask` for inspection. `variance_threshold` defaults to `0.0` (removes only constant pixels); raise it to drop low- but nonzero-variance pixels.
 
@@ -147,6 +148,17 @@ reduction:
 - step: filter_detector_variance
   on: epix_ROI_1
   variance_threshold: 0.01
+```
+
+`common_mode_correction` removes the slowly varying baseline shared across a readout unit. The offset is estimated per shot from a `reference` range that carries no signal (a dark band) and subtracted from the whole unit. `axis: row` subtracts a per-row offset (reference is a column range), `axis: column` a per-column offset (reference is a row range), `axis: bank` a per-bank offset over `bank_size`-wide column blocks (ePix100 default 128). `method` is `median` (default, robust) or `mean`.
+
+```yaml
+# Per-row common mode from a dark column band
+- step: common_mode_correction
+  on: epix
+  axis: row
+  method: median
+  reference: [700, 768]   # signal-free columns
 ```
 
 ### Shot Combination
@@ -176,8 +188,20 @@ reduction:
 | Step | Parameters | Description |
 |------|-----------|-------------|
 | `normalize_xes` | `on`, `pixel_range` | Normalize each row by its sum. Produces `{on}_normalized` |
+| `subtract_polynomial_background` | `on`, `axis`, `order`, `background`, `peak_mask` | Fit a polynomial baseline to signal-free regions along the spatial axis and subtract it. Non-destructive: produces `{on}_bkgsub` |
 | `make_energy_axis` | `detector_key`, `n_pixels`, `crystal_detector_distance`, `crystal_radius`, `d_spacing`, `mm_per_pixel`, `name` | Convert pixels to energy via vonHamos geometry. Produces `{name}_energy` |
 | `patch_pixels` | `on`, `pixels`, `mode` | Repair bad pixels by interpolation or zeroing |
+
+`subtract_polynomial_background` removes smooth scattering/fluorescence background while preserving peak area. It fits a low-order polynomial (`order`, default 2) along `axis` (default last) using only signal-free pixels, then subtracts the fitted baseline. Name the fit regions with `background` (a list of `[start, end]` ranges), or name the peaks to exclude with `peak_mask`. `peak_mask` accepts a single `[start, end]` or a list of ranges, so several emission lines dispersed on one detector can all be masked at once. NaN pixels are excluded from the fit and left as NaN in the output.
+
+```yaml
+# Two emission lines on one detector: mask both, fit the rest
+- step: subtract_polynomial_background
+  on: epix_ROI_1_time_binned
+  axis: 1
+  order: 2
+  peak_mask: [[30, 70], [95, 125]]
+```
 
 ### XAS-Specific
 

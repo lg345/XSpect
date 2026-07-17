@@ -169,6 +169,203 @@ def filter_detector_variance(run, **kwargs):
     )
 
 
+@register_step("common_mode_correction")
+def common_mode_correction(run, **kwargs):
+    """Subtract per-row, per-column, or per-bank common-mode offsets.
+
+    Detector electronics add a slowly varying baseline that is shared across
+    all pixels in a readout unit (a row, a column, or an ePix100 bank). The
+    offset is estimated from a reference region that carries no signal (a dark
+    band) and subtracted from the whole unit. Runs on 3D detector data
+    (shots x rows x cols) before shot reduction and preserves the input shape.
+
+    Parameters from YAML:
+        on: detector key (3D: shots x rows x cols, or 2D: rows x cols)
+        axis: "row" (default), "column", or "bank". "row" removes a per-row
+            offset (shared across columns), "column" a per-column offset,
+            "bank" a per-bank offset across fixed-width column blocks.
+        method: "median" (default, robust to outliers) or "mean".
+        reference: [start, end] pixel range of the signal-free band used to
+            estimate the offset. Indexed along the axis orthogonal to the
+            correction: for axis="row" it is a column range, for axis="column"
+            (and "bank") it is a row range. Default: full extent.
+        bank_size: int, column width of an ePix100 bank (default 128). Only
+            used when axis="bank".
+    """
+    detector_key = kwargs.get("on")
+    axis = kwargs.get("axis", "row")
+    method = kwargs.get("method", "median")
+    reference = kwargs.get("reference", None)
+    bank_size = int(kwargs.get("bank_size", 128))
+    if detector_key is None:
+        return
+
+    data = getattr(run, detector_key, None)
+    if data is None:
+        run.update_status(f"common_mode_correction: {detector_key} not found")
+        return
+
+    data = np.asarray(data, dtype=np.float64)
+    if data.ndim == 2:
+        # promote to (1, rows, cols) so one code path handles both
+        working = data[np.newaxis, ...]
+        squeezed = True
+    elif data.ndim == 3:
+        working = data
+        squeezed = False
+    else:
+        run.update_status(
+            f"common_mode_correction: {detector_key} must be 2D or 3D, got {data.ndim}D"
+        )
+        return
+
+    reducer = np.nanmedian if method == "median" else np.nanmean
+
+    # working is (shots, rows, cols). The reference range slices the axis
+    # orthogonal to the correction direction so the offset is estimated only
+    # from the dark band.
+    if axis == "row":
+        # per-row offset shared across columns; reference is a column range
+        if reference is not None:
+            band = working[:, :, reference[0] : reference[1]]
+        else:
+            band = working
+        offset = reducer(band, axis=2, keepdims=True)  # (shots, rows, 1)
+        corrected = working - offset
+    elif axis == "column":
+        # per-column offset shared across rows; reference is a row range
+        if reference is not None:
+            band = working[:, reference[0] : reference[1], :]
+        else:
+            band = working
+        offset = reducer(band, axis=1, keepdims=True)  # (shots, 1, cols)
+        corrected = working - offset
+    elif axis == "bank":
+        # per-bank offset: split columns into fixed-width blocks, estimate one
+        # offset per block from the reference row band, subtract per block.
+        if reference is not None:
+            band = working[:, reference[0] : reference[1], :]
+        else:
+            band = working
+        n_cols = working.shape[2]
+        corrected = working.copy()
+        for start in range(0, n_cols, bank_size):
+            end = min(start + bank_size, n_cols)
+            offset = reducer(band[:, :, start:end], axis=(1, 2), keepdims=True)
+            corrected[:, :, start:end] = working[:, :, start:end] - offset
+    else:
+        run.update_status(
+            f"common_mode_correction: unknown axis '{axis}' (use row|column|bank)"
+        )
+        return
+
+    if squeezed:
+        corrected = corrected[0]
+    setattr(run, detector_key, corrected)
+    run.update_status(
+        f"Common-mode corrected {detector_key} (axis={axis}, method={method})"
+    )
+
+
+@register_step("subtract_polynomial_background")
+def subtract_polynomial_background(run, **kwargs):
+    """Subtract a polynomial baseline fit along the spatial axis.
+
+    Fits a low-order polynomial to signal-free regions along one axis and
+    subtracts it, removing smooth scattering/fluorescence background while
+    preserving peak area. The peak region is excluded from the fit either by
+    naming the background regions explicitly (``background``) or by masking
+    the peak (``peak_mask``). Non-destructive: writes ``<on>_bkgsub``.
+
+    Works on a 1D spectrum or a 2D array (bins x pixels). The fit reuses the
+    vectorized weighted-polynomial projection from patch_pixels: the offset
+    vector depends only on the sample positions and weights, so it is built
+    once and applied to every row with a single matrix multiply.
+
+    Parameters from YAML:
+        on: spectrum key (1D pixels, or 2D bins x pixels).
+        axis: spatial axis to fit along (default: last axis).
+        order: polynomial degree (default 2).
+        background: list of [start, end] pixel ranges to fit (signal-free).
+            If given, only these ranges anchor the fit.
+        peak_mask: pixel range(s) to EXCLUDE from the fit (the emission peaks).
+            Accepts a single [start, end] or a list of [start, end] ranges, so
+            several dispersed lines (e.g. Kalpha and Kbeta on one detector) can
+            all be masked at once. Used when naming the peaks is easier than the
+            background. Ignored if ``background`` is given.
+    """
+    detector_key = kwargs.get("on")
+    axis = kwargs.get("axis", None)
+    order = int(kwargs.get("order", 2))
+    background = kwargs.get("background", None)
+    peak_mask = kwargs.get("peak_mask", None)
+    if detector_key is None:
+        return
+
+    data = getattr(run, detector_key, None)
+    if data is None:
+        run.update_status(f"subtract_polynomial_background: {detector_key} not found")
+        return
+
+    data = np.asarray(data, dtype=np.float64)
+    if axis is None:
+        axis = data.ndim - 1
+
+    n_pixels = data.shape[axis]
+    x = np.arange(n_pixels, dtype=np.float64)
+
+    # weights select which pixels anchor the fit: 1 for background, 0 for peak.
+    weights = np.ones(n_pixels, dtype=np.float64)
+    if background is not None:
+        weights[:] = 0.0
+        for rng in background:
+            weights[rng[0] : rng[1]] = 1.0
+    elif peak_mask is not None:
+        # accept a single [start, end] or a list of ranges (multiple lines)
+        mask_ranges = peak_mask
+        if len(peak_mask) == 2 and np.isscalar(peak_mask[0]):
+            mask_ranges = [peak_mask]
+        for rng in mask_ranges:
+            weights[rng[0] : rng[1]] = 0.0
+
+    # Bring the fit axis to front so every other axis is a batch dimension.
+    moved = np.moveaxis(data, axis, 0)  # (n_pixels, ...)
+    flat = moved.reshape(n_pixels, -1).copy()  # (n_pixels, N_rows)
+    nan_mask = np.isnan(flat)
+    flat[nan_mask] = 0.0
+
+    if np.sum(weights > 0.5) < order + 1:
+        run.update_status(
+            f"subtract_polynomial_background: too few background pixels "
+            f"({int(np.sum(weights > 0.5))}) for order {order}; skipped"
+        )
+        return
+
+    # Per-row weights: the base background/peak mask, zeroed wherever a row has
+    # a NaN so those points never enter that row's fit. NaN positions differ
+    # per row, so the normal equations are solved per row (batched). The base
+    # weight is squared to match numpy.polyfit's 1/sigma convention
+    # (minimise sum(w**2 * r**2)).
+    V = np.vander(x, order + 1)  # (n_pixels, order+1)
+    w_full = (weights**2)[:, np.newaxis] * (~nan_mask)  # (n_pixels, N_rows)
+
+    # A[r] = V^T diag(w_r) V ; b[r] = V^T diag(w_r) flat_r, batched over rows r.
+    A = np.einsum("pk,pr,pl->rkl", V, w_full, V)  # (N_rows, order+1, order+1)
+    b = np.einsum("pk,pr->rk", V, w_full * flat)  # (N_rows, order+1)
+    coeffs = np.linalg.solve(A, b)  # (N_rows, order+1)
+    baseline = (V @ coeffs.T)  # (n_pixels, N_rows)
+
+    subtracted = flat - baseline
+    subtracted[nan_mask] = np.nan  # keep original NaN positions
+    result = np.moveaxis(subtracted.reshape(moved.shape), 0, axis)
+
+    setattr(run, f"{detector_key}_bkgsub", result)
+    run.update_status(
+        f"Polynomial background subtracted {detector_key} -> "
+        f"{detector_key}_bkgsub (order={order}, axis={axis})"
+    )
+
+
 @register_step("find_rotation_angle")
 def find_rotation_angle(run, **kwargs):
     """Auto-detect the tilt angle of a dispersed spectral signal.

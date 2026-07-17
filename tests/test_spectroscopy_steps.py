@@ -184,3 +184,162 @@ class TestPurgeKeys:
         step = get_step("purge_keys")
         step(mock_run, keys=["epix_ROI_1"])
         assert mock_run.epix_ROI_1 is None
+
+
+class TestCommonModeCorrection:
+    def test_per_row_offset_removed(self):
+        # 3 shots, 4 rows, 6 cols; each row carries a known constant offset
+        run = MockRun()
+        offsets = np.array([1.0, 2.0, 3.0, 4.0])
+        data = np.zeros((3, 4, 6)) + offsets[np.newaxis, :, np.newaxis]
+        run.det = data.copy()
+        get_step("common_mode_correction")(run, on="det", axis="row")
+        np.testing.assert_allclose(run.det, 0.0, atol=1e-12)
+
+    def test_flat_frame_unchanged(self):
+        run = MockRun()
+        run.det = np.full((2, 5, 5), 7.0)
+        get_step("common_mode_correction")(run, on="det", axis="row", method="mean")
+        np.testing.assert_allclose(run.det, 0.0, atol=1e-12)
+
+    def test_reference_band_isolates_offset(self):
+        # signal in cols 0-2, dark band in cols 3-5 carrying offset 5
+        run = MockRun()
+        data = np.zeros((1, 3, 6))
+        data[0, :, 0:3] = 100.0
+        data[0, :, 3:6] = 5.0
+        run.det = data.copy()
+        get_step("common_mode_correction")(run, on="det", axis="row", reference=[3, 6])
+        np.testing.assert_allclose(run.det[0, :, 0:3], 95.0, atol=1e-12)
+        np.testing.assert_allclose(run.det[0, :, 3:6], 0.0, atol=1e-12)
+
+    def test_column_axis(self):
+        run = MockRun()
+        col_offsets = np.array([1.0, 2.0, 3.0])
+        run.det = np.zeros((2, 4, 3)) + col_offsets[np.newaxis, np.newaxis, :]
+        get_step("common_mode_correction")(run, on="det", axis="column")
+        np.testing.assert_allclose(run.det, 0.0, atol=1e-12)
+
+    def test_bank_axis(self):
+        # 8 cols, bank_size 4 -> two banks with distinct offsets
+        run = MockRun()
+        data = np.zeros((1, 3, 8))
+        data[0, :, 0:4] = 10.0
+        data[0, :, 4:8] = 20.0
+        run.det = data.copy()
+        get_step("common_mode_correction")(run, on="det", axis="bank", bank_size=4)
+        np.testing.assert_allclose(run.det, 0.0, atol=1e-12)
+
+    def test_shape_preserved_2d(self):
+        run = MockRun()
+        run.det = np.random.rand(6, 6)
+        get_step("common_mode_correction")(run, on="det", axis="row")
+        assert run.det.shape == (6, 6)
+
+    def test_missing_key_noop(self):
+        run = MockRun()
+        get_step("common_mode_correction")(run, on="nope", axis="row")
+        assert any("not found" in s for s in run.status)
+
+
+class TestSubtractPolynomialBackground:
+    def test_gaussian_on_linear_background(self):
+        # narrow peak, generous mask so tails don't contaminate the fit region
+        n = 100
+        x = np.arange(n, dtype=float)
+        bkg = 2.0 + 0.05 * x
+        peak = 500.0 * np.exp(-((x - 50) ** 2) / (2 * 3.0**2))
+        run = MockRun()
+        run.spec = bkg + peak
+        get_step("subtract_polynomial_background")(
+            run, on="spec", order=1, peak_mask=[30, 70]
+        )
+        result = run.spec_bkgsub
+        np.testing.assert_allclose(result[0:25], 0.0, atol=1e-6)
+        np.testing.assert_allclose(result[75:], 0.0, atol=1e-6)
+        np.testing.assert_allclose(result.sum(), peak.sum(), rtol=1e-4)
+
+    def test_pure_background_yields_zero(self):
+        n = 80
+        x = np.arange(n, dtype=float)
+        run = MockRun()
+        run.spec = 3.0 - 0.02 * x + 0.001 * x**2
+        get_step("subtract_polynomial_background")(run, on="spec", order=2)
+        np.testing.assert_allclose(run.spec_bkgsub, 0.0, atol=1e-8)
+
+    def test_background_ranges(self):
+        n = 100
+        x = np.arange(n, dtype=float)
+        peak = 300.0 * np.exp(-((x - 50) ** 2) / (2 * 3.0**2))
+        run = MockRun()
+        run.spec = 10.0 + 0.1 * x + peak
+        get_step("subtract_polynomial_background")(
+            run, on="spec", order=1, background=[[0, 30], [70, 100]]
+        )
+        np.testing.assert_allclose(run.spec_bkgsub[0:28], 0.0, atol=1e-6)
+
+    def test_multiple_peak_masks(self):
+        # two dispersed emission lines on one axis; mask both
+        n = 150
+        x = np.arange(n, dtype=float)
+        bkg = 5.0 + 0.02 * x
+        line1 = 400.0 * np.exp(-((x - 40) ** 2) / (2 * 3.0**2))
+        line2 = 300.0 * np.exp(-((x - 100) ** 2) / (2 * 3.0**2))
+        run = MockRun()
+        run.spec = bkg + line1 + line2
+        get_step("subtract_polynomial_background")(
+            run, on="spec", order=1, peak_mask=[[25, 55], [85, 115]]
+        )
+        result = run.spec_bkgsub
+        # background between and around the two lines returns to zero
+        # (atol allows for negligible Gaussian-tail leakage at the mask edges)
+        np.testing.assert_allclose(result[0:20], 0.0, atol=1e-3)
+        np.testing.assert_allclose(result[65:80], 0.0, atol=1e-3)
+        np.testing.assert_allclose(result[125:], 0.0, atol=1e-3)
+        # combined line area preserved
+        np.testing.assert_allclose(
+            result.sum(), (line1 + line2).sum(), rtol=1e-3
+        )
+
+    def test_2d_rows_fit_independently(self):
+        n_bins, n_pix = 5, 100
+        x = np.arange(n_pix, dtype=float)
+        data = np.zeros((n_bins, n_pix))
+        for i in range(n_bins):
+            data[i] = (1.0 + i) + 0.03 * x
+            data[i] += 200.0 * np.exp(-((x - 50) ** 2) / (2 * 3.0**2))
+        run = MockRun()
+        run.spec = data
+        get_step("subtract_polynomial_background")(
+            run, on="spec", order=1, peak_mask=[30, 70]
+        )
+        result = run.spec_bkgsub
+        assert result.shape == (n_bins, n_pix)
+        np.testing.assert_allclose(result[:, 0:25], 0.0, atol=1e-6)
+
+    def test_nans_do_not_propagate(self):
+        n = 80
+        x = np.arange(n, dtype=float)
+        spec = 5.0 + 0.1 * x
+        spec[10] = np.nan
+        spec[20] = np.nan
+        run = MockRun()
+        run.spec = spec
+        get_step("subtract_polynomial_background")(run, on="spec", order=1)
+        result = run.spec_bkgsub
+        assert np.isnan(result[10]) and np.isnan(result[20])
+        finite = result[np.isfinite(result)]
+        np.testing.assert_allclose(finite, 0.0, atol=1e-6)
+
+    def test_non_destructive(self):
+        run = MockRun()
+        original = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        run.spec = original.copy()
+        get_step("subtract_polynomial_background")(run, on="spec", order=1)
+        np.testing.assert_array_equal(run.spec, original)
+        assert hasattr(run, "spec_bkgsub")
+
+    def test_missing_key_noop(self):
+        run = MockRun()
+        get_step("subtract_polynomial_background")(run, on="nope")
+        assert any("not found" in s for s in run.status)
