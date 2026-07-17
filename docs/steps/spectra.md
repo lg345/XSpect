@@ -23,6 +23,12 @@ For 2D input each row (bin) is divided by its own sum; zero-sum rows are left
 unchanged. If `<on>` carries a companion `_std` array, it is scaled by the same
 factor and written as `<on>_normalized_std`.
 
+```yaml
+- step: normalize_xes
+  on: epix_ROI_1_time_binned
+  pixel_range: [100, 400]
+```
+
 ### `subtract_polynomial_background`
 Fit a polynomial baseline along the spatial axis and subtract it.
 Non-destructive.
@@ -64,6 +70,11 @@ Set the listed run attributes to `None` to free memory mid-pipeline.
 |------|---------|-------------|
 | `keys` | `[]` | list of attribute names to drop |
 
+```yaml
+- step: purge_keys
+  keys: [epix, epix_ROI_1]
+```
+
 ## Cross-run reduction
 
 ### `combine_runs`
@@ -87,3 +98,9 @@ laser-on and laser-off binned data across runs and returning a results dict.
 | `laser_off_suffix` | `"_xray_not_laser_time_binned"` | laser-off data suffix |
 
 Results land in `pipe.results` under the reduction name.
+
+```yaml
+reduction:
+  - step: combine_runs
+    detector_key: epix_ROI_1
+```

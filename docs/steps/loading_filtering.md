@@ -18,6 +18,12 @@ Load scalar and 1D keys from the smalldata HDF5 into named run attributes.
 | `keys` | `[]` | list of HDF5 dataset paths |
 | `friendly_names` | `[]` | attribute names to store them under (parallel to `keys`) |
 
+```yaml
+- step: load_run_keys
+  keys: [ipm_dg2/sum, enc/lasDelay]
+  friendly_names: [ipm, encoder]
+```
+
 ### `load_detector`
 Load a 3D detector stack (one image per shot) with optional crop and transpose.
 
@@ -33,12 +39,23 @@ Load a 3D detector stack (one image per shot) with optional crop and transpose.
 | `rois` | `None` | list of `[start, end]` ranges to crop at load |
 | `combine_rois` | `True` | merge ROIs into one array vs keep separate |
 
+```yaml
+- step: load_detector
+  keys: [epix100/ROI_0_area]
+  friendly_names: [epix]
+  transpose: false
+```
+
 ### `get_run_shot_properties`
 Load the per-shot x-ray / laser status masks from `lightStatus`.
 
 - **Reads:** `lightStatus` (via the run).
 - **Writes:** `xray`, `laser`, `simultaneous` — each `(shots,)` bool.
 - **Parameters:** none.
+
+```yaml
+- step: get_run_shot_properties
+```
 
 ### `droplet_reconstruction`
 Rebuild dense per-shot images from `droplet2photon` sparse photon positions,
@@ -81,6 +98,13 @@ filter key are dropped.
 | `filter_key` | `"ipm"` | per-shot key to threshold on |
 | `threshold` | `1e4` | scalar (keep `> threshold`) or `[min, max]` (keep inside) |
 
+```yaml
+- step: filter_shots
+  on: xray
+  filter_key: ipm
+  threshold: [2e4, 8e4]
+```
+
 ### `filter_detector_adu`
 Zero detector pixels outside an ADU window. Shape unchanged.
 
@@ -92,6 +116,12 @@ Zero detector pixels outside an ADU window. Shape unchanged.
 |------|---------|-------------|
 | `on` | required | detector key |
 | `adu_threshold` | `3.0` | scalar (keep `> t`) or `[min, max]` (keep inside) |
+
+```yaml
+- step: filter_detector_adu
+  on: epix
+  adu_threshold: 5.0
+```
 
 ### `filter_detector_variance`
 Zero pixels whose value barely changes across shots (dead/hot/constant pixels).
@@ -106,6 +136,12 @@ Data-driven alternative to a hand-tuned ADU cut, using sklearn
 |------|---------|-------------|
 | `on` | required | detector key |
 | `variance_threshold` | `0.0` | pixels with variance `<=` this are zeroed; `0.0` removes only constant pixels |
+
+```yaml
+- step: filter_detector_variance
+  on: epix
+  variance_threshold: 0.0
+```
 
 ### `hitfinding`
 Keep only shots whose total detector signal clears a threshold.
@@ -123,6 +159,12 @@ Keep only shots whose total detector signal clears a threshold.
 Use `min_sum: 1.0` to drop shots that are all-zero after ADU filtering. The
 relative mode breaks down when most shots are dark (median ≈ 0).
 
+```yaml
+- step: hitfinding
+  on: epix
+  min_sum: 1.0
+```
+
 ### `union_shots`
 Keep shots where ALL listed masks are true (logical AND).
 
@@ -136,6 +178,12 @@ Keep shots where ALL listed masks are true (logical AND).
 | `filter_keys` | `[]` | mask names to AND together |
 | `new_key` | auto | output name; defaults to `<on>_<joined keys>` |
 
+```yaml
+- step: union_shots
+  on: epix_ROI_1
+  filter_keys: [simultaneous, laser]
+```
+
 ### `separate_shots`
 Keep shots matching the first mask but NOT the second (A and not B).
 
@@ -148,3 +196,9 @@ Keep shots matching the first mask but NOT the second (A and not B).
 | `on` | required | data/detector key |
 | `filter_keys` | `[]` | `[include_mask, exclude_mask]` |
 | `new_key` | auto | output name; defaults to `<on>_<A>_not_<B>` |
+
+```yaml
+- step: separate_shots
+  on: epix_ROI_1
+  filter_keys: [xray, laser]   # x-ray on, laser off
+```
