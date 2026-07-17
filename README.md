@@ -88,9 +88,9 @@ The same pipeline machinery covers the common LCLS spectroscopy modes. Example c
 Full list and arguments in the [YAML pipeline guide](docs/YAML_PIPELINE_GUIDE.md).
 
 - Shot filtering: `filter_shots`, `filter_detector_adu`, `filter_detector_variance` (sklearn VarianceThreshold, data-driven alternative to ADU/keV thresholds)
-- Detector prep: `patch_pixels` (manual or auto-detected bad columns), `rotate_detector`, `find_rotation_angle`, `droplet_reconstruction`
+- Detector prep: `patch_pixels` (manual or auto-detected bad columns), `rotate_detector`, `find_rotation_angle`, `common_mode_correction` (per-row/column/bank baseline from a dark band), `droplet_reconstruction`
 - Binning and reduction: `reduce_detector_temporal`, `combine_runs`
-- Spectra: `make_energy_axis`, `normalize_xes`
+- Spectra: `make_energy_axis`, `normalize_xes`, `subtract_polynomial_background` (polynomial baseline from the spatial axis, multi-peak masking)
 
 ## Skills
 
