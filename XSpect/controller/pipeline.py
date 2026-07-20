@@ -281,7 +281,12 @@ class Pipeline:
         """Create experiment object from config. Wraps the directory lookup failure gracefully."""
         cfg = self.config.experiment
         try:
-            exp = spectroscopy_experiment(cfg.lcls_run, cfg.hutch, cfg.experiment_id)
+            exp = spectroscopy_experiment(
+                cfg.lcls_run,
+                cfg.hutch,
+                cfg.experiment_id,
+                smalldata_dir=cfg.smalldata_dir,
+            )
         except Exception:
             exp = _MockExperiment(cfg.lcls_run, cfg.hutch, cfg.experiment_id)
         return exp
