@@ -478,6 +478,83 @@ def apply_roi(run, **kwargs):
     run.update_status(f"Applied ROI to {detector_key}")
 
 
+@register_step("subtract_spatial_background")
+def subtract_spatial_background(run, **kwargs):
+    """Subtract a per-line background estimated from flanking regions.
+
+    Designed for a dispersed spectral streak sitting on a smooth, spatially
+    slowly-varying background (e.g. isotropic fluorescence under a Von Hamos
+    emission line). For each line along the dispersion axis, the background
+    level is estimated from one or two "side band" regions flanking the signal
+    (on the cross-dispersion axis) and subtracted from the whole line.
+
+    Works on a 2D image (rows x cols). ``bkg_axis`` is the CROSS-DISPERSION
+    axis, i.e. the axis along which the side bands are taken and which is
+    reduced away by the subsequent reduce_detector_spatial step. The background
+    per line is: mean over the side-band pixels, scaled to the number of pixels
+    in the signal band, then subtracted from the signal band; side-band columns
+    themselves are zeroed so they do not contribute downstream.
+
+    Parameters from YAML:
+        on:            detector key (2D rows x cols)
+        signal:        [start, end] of the signal band on bkg_axis
+        sidebands:     list of [start, end] flanking regions on bkg_axis used to
+                       estimate the background (1 or 2 regions typical)
+        bkg_axis:      cross-dispersion axis (default 1 = columns)
+        new_key:       output key (default: "<on>_bkgsub"); the original is kept
+        estimator:     "mean" or "median" over side-band pixels (default "median")
+    """
+    detector_key = kwargs.get("on")
+    signal = kwargs.get("signal")
+    sidebands = kwargs.get("sidebands")
+    bkg_axis = kwargs.get("bkg_axis", 1)
+    new_key = kwargs.get("new_key", None)
+    estimator = kwargs.get("estimator", "median")
+
+    if detector_key is None or signal is None or not sidebands:
+        run.update_status(
+            "subtract_spatial_background: 'on', 'signal' and 'sidebands' required"
+        )
+        return
+    data = getattr(run, detector_key, None)
+    if data is None:
+        return
+    if data.ndim != 2:
+        run.update_status(
+            f"subtract_spatial_background: expected 2D image, got ndim={data.ndim}"
+        )
+        return
+
+    # Move the cross-dispersion axis to position 1 so we can index columns.
+    work = data if bkg_axis == 1 else data.T  # (lines, cross)
+    est_fn = np.nanmedian if estimator == "median" else np.nanmean
+
+    # Per-line background level (one value per dispersion line) from side bands.
+    side_pixels = []
+    for lo, hi in sidebands:
+        side_pixels.append(work[:, lo:hi])
+    side = np.concatenate(side_pixels, axis=1)
+    bkg_per_pixel = est_fn(side, axis=1, keepdims=True)  # (lines, 1)
+
+    out = work.astype(float).copy()
+    s0, s1 = signal
+    out[:, s0:s1] = out[:, s0:s1] - bkg_per_pixel  # subtract per-pixel bkg
+    # zero everything outside the signal band so downstream reduction only
+    # integrates the background-subtracted signal columns
+    keep = np.zeros(work.shape[1], dtype=bool)
+    keep[s0:s1] = True
+    out[:, ~keep] = 0.0
+
+    result = out if bkg_axis == 1 else out.T
+    if new_key is None:
+        new_key = f"{detector_key}_bkgsub"
+    setattr(run, new_key, result)
+    run.update_status(
+        f"subtract_spatial_background: {detector_key} -> {new_key} "
+        f"signal={signal} sidebands={sidebands} estimator={estimator}"
+    )
+
+
 @register_step("time_binning")
 def time_binning(run, **kwargs):
     """Create time delay bins from laser timing data.
