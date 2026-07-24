@@ -1,0 +1,23 @@
+{
+  "framework": "python_library",
+  "project_type": "architecture_refactor",
+  "deployment_model": "pip_installable_package",
+  "user_type": "beamline_scientists",
+  "data_sources": ["hdf5_smalldata", "yaml_config"],
+  "auth_required": false,
+  "multi_user": false,
+  "real_time_updates": false,
+  "python_version": ">=3.9",
+  "dependencies": [
+    "numpy",
+    "h5py",
+    "scipy",
+    "matplotlib",
+    "pyyaml",
+    "tqdm"
+  ],
+  "test_framework": "pytest",
+  "phase": "1A",
+  "issue_ref": "#82",
+  "sub_issue_ref": "#84"
+}

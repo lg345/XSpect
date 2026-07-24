@@ -1,0 +1,27 @@
+name: docs
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      # Runtime deps so mkdocstrings can import the package for API docs.
+      - run: pip install -r requirements.txt
+      - run: pip install mkdocs mkdocs-material "mkdocstrings[python]"
+      # Non-strict: legacy-module docstrings emit griffe param-mismatch warnings
+      # that should not block the public deploy.
+      - run: mkdocs build
+      - run: mkdocs gh-deploy --force

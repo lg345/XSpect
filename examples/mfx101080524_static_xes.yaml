@@ -1,0 +1,91 @@
+# Static XES analysis for mfx101080524 (AlkB Fe Ka)
+# Replicates the workflow in XSpect_XES_mfx101080524.ipynb
+#
+# Old pattern:
+#   xes = XESBatchAnalysisRotation()
+#   xes.rois = [[89, 105]]
+#   xes.adu_cutoff = 3.0
+#   xes.angle = -1.0
+#   xes.pixels_to_patch = [351, 352]
+#   xes.run_parser(['237-239'])
+#   xes.primary_analysis_parallel_range(4, experiment, method=xes.primary_analysis_static, increment=500)
+#
+# New pattern:
+#   pipe = Pipeline.from_yaml("mfx101080524_static_xes.yaml")
+#   pipe.run(cores=4, batch_size=500)
+#
+# Matches primary_analysis_static workflow:
+#   1. union_shots(epix, ['xray','xray']) — keep only xray shots
+#   2. filter_detector_adu(epix, 3.0) — zero pixels below threshold
+#   3. hitfinding(epix, cutoff_multiplier=1) — remove low-signal shots
+#   4. reduce_detector_shots(epix, sum) — sum shots → 2D (704 x 200)
+#   5. patch_pixels(epix, axis=0, pixels=[351,352]) — fix bad rows on 2D
+#   6. rotate(epix, -1.0) — rotate 2D image
+#   7. reduce_detector_spatial(epix, rois=[[89,105]]) — ROI on last axis, sum → 1D (704,)
+#   8. make_energy_axis — vonHamos geometry → energy in eV
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101080524
+  lcls_run: 24
+
+data:
+  runs: [237-239]
+  keys:
+    ipm_dg2/sum: ipm
+    lightStatus/xray: xray
+    lightStatus/laser: laser
+  detector_keys:
+    epix_1/ROI_0_area:
+      name: epix
+      transpose: false
+
+pipeline:
+  # 1. Filter to xray-only shots (AND of xray mask with itself = xray mask)
+  - step: union_shots
+    on: epix
+    filter_keys: [xray, xray]
+    new_key: epix
+
+  # 2. ADU threshold (zero pixels below 3.0 ADU)
+  - step: filter_detector_adu
+    on: epix
+    adu_threshold: 3.0
+
+
+  # 4. Sum all shots → 2D image (704 x 200)
+  - step: reduce_detector_shots
+    on: epix
+    reduction: sum
+
+  # 5. Patch bad pixels on 2D summed image (axis 0 = dispersion/rows)
+  - step: patch_pixels
+    on: epix_reduced
+    pixels: [351, 352]
+    mode: polynomial
+    axis: 0
+
+  # 6. Rotate the summed 2D image
+  - step: rotate_detector
+    on: epix_reduced
+    angle: -1.0
+
+  # 7. Apply ROI on last axis (cross-dispersion, 200 px) and sum → 1D spectrum (704,)
+  - step: reduce_detector_spatial
+    on: epix_reduced
+    rois: [[89, 105]]
+    combine_rois: true
+    reduction: sum
+
+  # 8. Convert pixel axis to energy (vonHamos geometry for Fe Ka)
+  - step: make_energy_axis
+    detector_key: epix_reduced_ROI_1
+    crystal_detector_distance: 42.75
+    crystal_radius: 250.0
+    d_spacing: 0.981
+    mm_per_pixel: 0.05
+    name: xes
+
+output:
+  format: hdf5
+  path: ./results/mfx101080524_static/

@@ -1,4 +1,19 @@
+# ignore jupyter temp files
 .ipynb_checkpoints/
 Controller_Plans.ipynb
-./examples/.ipynb_checkpoints/
 XSpect_XES_examples.ipynb
+*.swp
+XSpect/*.swp
+
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Coverage
+.coverage
+
+# Pipeline output data (HDF5 results, large arrays)
+examples/results/
+
+# MkDocs generated site
+site/

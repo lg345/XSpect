@@ -1,37 +1,58 @@
 site_name: XSpect
-repo_url: https://github.com/lg345/XSpecT
-site_author: JTB
+site_description: X-ray spectroscopy analysis for LCLS (XES, XAS, RIXS)
+repo_url: https://github.com/lg345/XSpect
+site_author: XSpecT Team
 copyright: © 2025 LCLS
+
+# Point-in-time review doc kept in the repo but out of the published nav.
+not_in_nav: |
+  /2026-07-16_quarterly_review.md
 
 nav:
   - Home: index.md
   - Overview: Overview.md
-  - Examples:
+  - YAML pipeline:
+    - Guide: YAML_PIPELINE_GUIDE.md
+    - Example configs: example_configs.md
+    - Step reference:
+      - Overview: steps/index.md
+      - Loading & filtering: steps/loading_filtering.md
+      - Detector & spatial: steps/detector.md
+      - Binning: steps/binning.md
+      - Spectra & reductions: steps/spectra.md
+    - Source:
+      - Model: source_model.md
+      - Controller: source_controller.md
+      - Analysis steps: source_analysis.md
+  - Getting started:
     - XAS: Getting_started_XAS.md
     - XES: Getting_started_XES.md
-    - Post_Processing: Post_Processing.md
-  - Source:
-    - XSpect:
-      - XSpect_Analysis.md
-      - XSpect_Controller.md
-      - XSpect_Diagnostics.md
-      - XSpect_PostProcessing.md
-      - XSpect_Visualization.md
+    - Post-processing: Post_Processing.md
+  - Source (legacy):
+    - XSpect_Analysis: XSpect_Analysis.md
+    - XSpect_Controller: XSpect_Controller.md
+    - XSpect_Diagnostics: XSpect_Diagnostics.md
+    - XSpect_PostProcessing: XSpect_PostProcessing.md
+    - XSpect_Visualization: XSpect_Visualization.md
 
 plugins:
-- search
-- mkdocstrings:
+  - search
+  - mkdocstrings:
       handlers:
         python:
+          paths: [.]
           options:
             docstring_style: numpy
-- offline
+            show_root_heading: true
+            show_source: true
 
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
   - admonition
   - pymdownx.arithmatex:
       generic: true
@@ -40,11 +61,11 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.mark
   - attr_list
+  - toc:
+      permalink: true
 
 theme:
   name: material
-  logo: media/logo_2.png
-  favicon: media/logo.png
   palette:
     - scheme: default
       primary: teal

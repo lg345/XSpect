@@ -1,0 +1,8 @@
+run,sample_label,redox,reduced_fraction,ocv_mV,role,notes
+3,unknown,,,,,first science run — fill in sample_label/redox/reduced_fraction/role
+4,dark,,,,,excluded,no beam (0/200 xray shots had signal)
+5,dark,,,,,excluded,no beam (0/200 xray shots had signal)
+6,unknown,,,,,fill in sample_label/redox/reduced_fraction/role
+7,unknown,,,,,fill in sample_label/redox/reduced_fraction/role
+8,dark,,,,,excluded,no beam (0/200 xray shots had signal; IPM at noise floor)
+9,unknown,,,,,fill in sample_label/redox/reduced_fraction/role — first 30 Hz run

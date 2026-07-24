@@ -8,7 +8,7 @@ The source code is available for download from the [XSpecT github repo](https://
 
 ## Getting Started
 
-Check out our quick start examples for [XAS](Getting_started_XAS.html) and [XES](Getting_started_XES.html), as well as the example jupyter noteboks found [here](https://github.com/lg345/XSpecT/tree/master/examples).
+Check out our quick start examples for [XAS](Getting_started_XAS.md) and [XES](Getting_started_XES.md), as well as the example jupyter notebooks found [here](https://github.com/lg345/XSpect/tree/master/examples).
 
 ## License 
 

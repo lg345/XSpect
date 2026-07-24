@@ -1,0 +1,123 @@
+# Per-shot XES projections for mfx101609126 — prepared for stochastic RIXS (spook)
+# XRT spectrometer      — feespec/hproj, already 1D per shot (2048 px)
+# Spectroscopy detector — epix100_0/ROI_area, signal rows projected onto X
+# SEER spectrometer     — epix100_1/ROI_area, signal rows projected onto X
+#
+# ASIC panel-gap spikes and dead-gap columns are removed via patch_pixels
+# (auto_detect mode) before rotation.  Fixed rotation angles determined from
+# mfx101609126_rotation_diagnostic.ipynb: -2.0 deg (spec) / -1.6 deg (SEER).
+#
+# All arrays are filtered to xray-on shots so shot indices align across A and B:
+#   spook A = xrt_hproj       (N_xray, 2048) — incident spectrum
+#   spook B = epix_spec_ROI_1 (N_xray, n_cols) — emission (epix100_0)
+#          or epix_seer_ROI_1 (N_xray, n_cols) — emission (epix100_1 SEER)
+#
+# ipm is also filtered to xray shots for optional per-shot normalization.
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101609126
+  lcls_run: 24
+
+data:
+  runs: [79]
+  keys:
+    MfxDg2BmMon/totalIntensityJoules: ipm
+    lightStatus/xray: xray
+    feespec/hproj: xrt_hproj
+  detector_keys:
+    epix100_0/ROI_area:
+      name: epix_spec
+      transpose: false
+    epix100_1/ROI_area:
+      name: epix_seer
+      transpose: false
+
+pipeline:
+  # 1. Filter all arrays to xray-on shots so A and B share the same shot index
+  - step: union_shots
+    on: xrt_hproj
+    filter_keys: [xray, xray]
+    new_key: xrt_hproj
+
+  - step: union_shots
+    on: ipm
+    filter_keys: [xray, xray]
+    new_key: ipm
+
+  - step: union_shots
+    on: epix_spec
+    filter_keys: [xray, xray]
+    new_key: epix_spec
+
+  - step: union_shots
+    on: epix_seer
+    filter_keys: [xray, xray]
+    new_key: epix_seer
+
+  # 2. ADU threshold — zeros noise pixels before spike detection and rotation
+  - step: filter_detector_adu
+    on: epix_spec
+    adu_threshold: 5.0
+
+  - step: filter_detector_adu
+    on: epix_seer
+    adu_threshold: 5.0
+
+  # 3. Patch ASIC panel-gap columns
+  #    epix100_0 has 3 gaps visible in the 2D ROI image:
+  #      cols 80-81, 176-177, 275-276
+  #    Using manual pixels — auto_detect at nsigma=5 over-flags real
+  #    spectral features on this detector.  auto_detect still used for
+  #    epix_seer below where it works well.
+  - step: patch_pixels
+    on: epix_spec
+    pixels: [80, 81, 82, 176, 177,178, 272,273, 274]
+    mode: polynomial
+    deg: 2
+
+  - step: patch_pixels
+    on: epix_seer
+    auto_detect: true
+    threshold: 5.0
+    nsigma: 5.0
+    max_gap_width: 4
+    smooth_window: 31
+    mode: polynomial
+
+  # 4. Rotate to align dispersion axis with detector columns
+  #    Fixed angles from mfx101609126_rotation_diagnostic.ipynb:
+  #      epix100_0 (spectroscopy): -2.0 deg
+  #      epix100_1 (SEER):         -1.6 deg
+  #    reshape: false keeps the original array dimensions
+  - step: rotate_detector
+    on: epix_spec
+    angle: -2.0
+    reshape: false
+
+  - step: rotate_detector
+    on: epix_seer
+    angle: -1.6
+    reshape: false
+
+  # 5. Project rows 10-40 (epix_spec) and 50-90 (epix_seer) onto X
+  #    → per-shot 1D emission spectrum (N_xray, n_cols)
+  - step: reduce_detector_spatial
+    on: epix_spec
+    axis: 1
+    rois: [[10, 40]]
+    combine_rois: true
+    reduction: sum
+    purge: true
+
+  - step: reduce_detector_spatial
+    on: epix_seer
+    axis: 1
+    rois: [[50, 90]]
+    combine_rois: true
+    reduction: sum
+    purge: true
+
+output:
+  format: hdf5
+  path: ./results/mfx101609126_pershot_xes/

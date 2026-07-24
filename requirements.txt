@@ -1,0 +1,21 @@
+# Core runtime dependencies for XSpect.
+# Lower bounds match the versions the package is developed against.
+# psana / the LCLS analysis environment is assumed present on S3DF and is
+# not pip-installable; it is not listed here.
+
+numpy>=1.26
+scipy>=1.13
+h5py>=3.11
+matplotlib>=3.8
+PyYAML>=6.0
+scikit-learn>=1.4
+tqdm>=4.66
+psutil>=5.9
+
+# Notebook / interactive widgets (diagnostics, foil-scan derivative analyzer)
+ipywidgets>=7.8
+ipython>=8.25
+
+# Optional: only needed for the detector processor / hit-finding / droplet path
+# (XSpect.XSpect_Processor). Install if you use hitfinding or droplet steps.
+# opencv-python>=4.8

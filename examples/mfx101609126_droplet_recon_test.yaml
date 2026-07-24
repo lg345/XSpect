@@ -1,0 +1,99 @@
+# Droplet-reconstruction test pipeline for mfx101609126 run 79
+#
+# Mirrors mfx101609126_pershot_xes.yaml but replaces the pre-processed
+# epix100_0/ROI_area detector load with on-the-fly reconstruction from
+# the droplet2photon sparse arrays (epix100_0/droplet_droplet2phot_sparse_*).
+#
+# The droplet_reconstruction step reads the fixed-length sparse format
+# (Nshots x 100000 zero-padded) directly from the source smalldata HDF5,
+# scatters photons back onto the full ePix100 panel (704 x 768), and then
+# crops to the same ROI window used in the pre-processed ROI_area dataset:
+#   rows 270-330, cols 400-700  ->  (60, 300) matching ROI_area shape
+#
+# max_shots: 100 limits processing to the first 100 shots for fast testing.
+# Remove or increase for production runs.
+#
+# Run this pipeline with:
+#   import sys; sys.path.insert(0, '..')
+#   from XSpect.controller.pipeline import Pipeline
+#   p = Pipeline.from_yaml('mfx101609126_droplet_recon_test.yaml')
+#   p.run(cores=1, batch_size=5000)
+#
+# Save results with (mirrors regenerate_run0079.py):
+#   import h5py, os, numpy as np
+#   out_dir = p.config.output.path; os.makedirs(out_dir, exist_ok=True)
+#   out_file = os.path.join(out_dir, 'run0079.h5')
+#   with h5py.File(out_file, 'w') as f:
+#       for k, v in p.results.items():
+#           if isinstance(v, np.ndarray):
+#               f.create_dataset(k, data=v)
+
+experiment:
+  hutch: mfx
+  experiment_id: mfx101609126
+  lcls_run: 24
+
+data:
+  runs: [79]
+  max_shots: 100        # set to null (or remove) for the full run
+  keys:
+    MfxDg2BmMon/totalIntensityJoules: ipm
+    lightStatus/xray: xray
+    feespec/hproj: xrt_hproj
+  # No detector_keys — epix data comes from the droplet_reconstruction step
+
+pipeline:
+  # 1. Reconstruct epix100_0 images from sparse photon coordinates.
+  #    roi matches the window stored in epix100_0/ROI_area: rows 270-330, cols 400-700
+  #    Output: epix_spec  shape (n_shots, 60, 300)
+  - step: droplet_reconstruction
+    det: epix100_0
+    new_key: epix_spec
+    roi: [270, 330, 400, 700]
+
+  # 2. Filter all arrays to xray-on shots so A and B share the same shot index
+  - step: union_shots
+    on: xrt_hproj
+    filter_keys: [xray, xray]
+    new_key: xrt_hproj
+
+  - step: union_shots
+    on: ipm
+    filter_keys: [xray, xray]
+    new_key: ipm
+
+  - step: union_shots
+    on: epix_spec
+    filter_keys: [xray, xray]
+    new_key: epix_spec
+
+  # 3. ADU threshold — zero noise pixels before spike detection and rotation
+  - step: filter_detector_adu
+    on: epix_spec
+    adu_threshold: 5.0
+
+  # 4. Patch ASIC panel-gap columns (manual pixels from mfx101609126_pershot_xes.yaml)
+  - step: patch_pixels
+    on: epix_spec
+    pixels: [80, 81, 82, 176, 177, 178, 272, 273, 274]
+    mode: polynomial
+    deg: 2
+
+  # 5. Rotate to align dispersion axis with detector columns (-2.0 deg)
+  - step: rotate_detector
+    on: epix_spec
+    angle: -2.0
+    reshape: false
+
+  # 6. Project rows 10-40 onto X -> per-shot 1D emission spectrum (n_xray, 300)
+  - step: reduce_detector_spatial
+    on: epix_spec
+    axis: 1
+    rois: [[10, 40]]
+    combine_rois: true
+    reduction: sum
+    purge: true
+
+output:
+  format: hdf5
+  path: ./results/mfx101609126_droplet_recon_test/

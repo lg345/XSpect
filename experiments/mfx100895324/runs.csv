@@ -1,0 +1,20 @@
+run,sample_label,redox,reduced_fraction,ocv_mV,role,notes
+36,Fe(III),Fe3+,0.0,315,reference,ferricyanide after alignment; reference (0% reduced); OCV 315mV
+37,Fe(III),Fe3+,0.0,,oxidized,ferricyanide after alignment
+38,Fe(III),Fe3+,0.0,,oxidized,ferricyanide after alignment (short run)
+39,Fe(II),Fe2+,1.0,,reduced_endmember,ferrocyanide (loaded Fe(II) CN6)
+40,Fe(II),Fe2+,1.0,,reduced_endmember,ferrocyanide
+41,Fe(II),Fe2+,1.0,185,reduced_endmember,ferrocyanide; 185mV full well (emptyish up to 245mV)
+42,Fe(II),Fe2+,1.0,,reduced_endmember,ferrocyanide (short run)
+43,Fe(II):Fe(III)_50:50,mix,0.5,234,mixture,50:50 ferro:ferri (stopped); 234mV full well
+44,Fe(II):Fe(III)_50:50,mix,0.5,,mixture,50:50 ferro:ferri (stopped)
+45,Fe(II):Fe(III)_50:50,mix,0.5,,mixture,50:50 ferro:ferri (stopped)
+46,Fe(II):Fe(III)_50:50,mix,0.5,,mixture,50:50 ferro:ferri (short run)
+47,Fe_Foil,Fe0,,,excluded,metallic Fe foil calibration standard (NOT a cyanide sample); e-3 attenuation
+48,Fe(II):Fe(III)_20:80,mix,0.2,268,mixture,20:80 ferro:ferri; 268mV
+49,Fe(II):Fe(III)_20:80,mix,0.2,,mixture,20:80 ferro:ferri
+50,Fe(II):Fe(III)_20:80,mix,0.2,,mixture,20:80 ferro:ferri (short run)
+51,Fe(II):Fe(III)_10:90,mix,0.1,270,mixture,10:90 ferro:ferri; 270mV; reduced tape speed + static gun; first shots off in z
+52,Fe(II):Fe(III)_10:90,mix,0.1,,mixture,10:90 ferro:ferri
+53,Fe(II):Fe(III)_10:90,mix,0.1,,mixture,10:90 ferro:ferri
+54,Fe(II):Fe(III)_10:90,mix,0.1,,mixture,10:90 ferro:ferri (very short run)

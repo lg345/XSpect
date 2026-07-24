@@ -1,0 +1,18 @@
+experiment:
+  hutch: test
+  experiment_id: test00000
+  lcls_run: 1
+
+data:
+  runs: [1, 2]
+  keys:
+    ipm4/sum: ipm
+
+pipeline:
+  - step: placeholder_add
+    on: data
+    value: 5.0
+
+output:
+  format: hdf5
+  path: ./test_results/
