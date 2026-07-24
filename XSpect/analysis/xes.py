@@ -109,6 +109,138 @@ def make_energy_axis(run, **kwargs):
     )
 
 
+# Elemental emission line energies (eV). Source: standard X-ray data tables
+# (e.g. Bearden / NIST). Used by calibrate_energy to fit the geometry against a
+# known foil line. Add elements/lines as needed.
+EMISSION_LINES = {
+    "Ti": {"Ka1": 4510.84, "Ka2": 4504.86, "Kb1": 4931.81},
+    "V": {"Ka1": 4952.20, "Ka2": 4944.64, "Kb1": 5427.29},
+    "Cr": {"Ka1": 5414.72, "Ka2": 5405.509, "Kb1": 5946.71},
+    "Mn": {"Ka1": 5898.75, "Ka2": 5887.65, "Kb1": 6490.45},
+    "Fe": {"Ka1": 6403.84, "Ka2": 6390.84, "Kb1": 7057.98},
+    "Co": {"Ka1": 6930.32, "Ka2": 6915.30, "Kb1": 7649.43},
+    "Ni": {"Ka1": 7478.15, "Ka2": 7460.89, "Kb1": 8264.66},
+    "Cu": {"Ka1": 8047.78, "Ka2": 8027.83, "Kb1": 8905.29},
+    "Zn": {"Ka1": 8638.86, "Ka2": 8615.78, "Kb1": 9572.0},
+    "Ga": {"Ka1": 9251.74, "Ka2": 9224.82, "Kb1": 10264.2},
+    "Ge": {"Ka1": 9886.42, "Ka2": 9855.32, "Kb1": 10982.1},
+    "As": {"Ka1": 10543.72, "Ka2": 10507.99, "Kb1": 11726.2},
+    "Se": {"Ka1": 11222.4, "Ka2": 11181.4, "Kb1": 12495.9},
+    "Br": {"Ka1": 11924.2, "Ka2": 11877.6, "Kb1": 13291.4},
+    "Kr": {"Ka1": 12649.0, "Ka2": 12598.0, "Kb1": 14112.0},
+    "Rb": {"Ka1": 13395.3, "Ka2": 13335.8, "Kb1": 14961.3},
+    "Sr": {"Ka1": 14165.0, "Ka2": 14097.9, "Kb1": 15835.7},
+    "Y": {"Ka1": 14958.4, "Ka2": 14882.9, "Kb1": 16737.8},
+    "Zr": {"Ka1": 15775.1, "Ka2": 15690.9, "Kb1": 17667.8},
+}
+
+
+@register_step("calibrate_energy")
+def calibrate_energy(run, **kwargs):
+    """Calibrate the vonHamos crystal_detector_distance (A) against a known line.
+
+    The energy axis (make_energy_axis) is
+        ll   = pixel*mm_per_pixel/2 - (max(gl)-min(gl))/4
+        E(p) = hc / (2 d sin(arctan(R / (ll(p) + A))))
+    Everything except A is fixed by the spectrometer. Given a foil emission line
+    of known energy E0 whose peak falls at pixel p0 in a measured spectrum, A is
+    solved in closed form:
+        s     = hc / (2 d E0)
+        A     = R * sqrt(1 - s^2) / s - ll(p0)
+    This step finds p0 as the argmax of the spectrum (optionally within a pixel
+    window), solves A, and rebuilds `{name}_energy` so the line sits exactly at
+    E0. The fitted A is stored as `{name}_calibrated_A` (and returned in the
+    result dict via run.results) so it can be reused for subsequent, non-foil
+    measurements on the same spectrometer.
+
+    Parameters from YAML
+    --------------------
+    on            : spectrum key to locate the peak in (e.g. epix_reduced_ROI_1)
+    element       : element symbol for the foil, e.g. "Mn" (uses EMISSION_LINES)
+    line          : which line, "Ka1" (default), "Ka2", or "Kb1"
+    energy        : explicit line energy in eV (overrides element/line lookup)
+    crystal_radius, d_spacing, mm_per_pixel : geometry (same as make_energy_axis)
+    n_pixels      : pixel count (defaults to len of the `on` spectrum)
+    peak_window   : optional [lo, hi] pixel range to search for the peak
+    name          : output prefix (default "xes"); writes {name}_energy and
+                    {name}_calibrated_A
+    """
+    spec_key = kwargs.get("on")
+    element = kwargs.get("element")
+    line = kwargs.get("line", "Ka1")
+    energy = kwargs.get("energy", None)
+    R = kwargs.get("crystal_radius")
+    d = kwargs.get("d_spacing")
+    mm_per_pixel = kwargs.get("mm_per_pixel", 0.05)
+    peak_window = kwargs.get("peak_window", None)
+    name = kwargs.get("name", "xes")
+
+    if spec_key is None or R is None or d is None:
+        run.update_status("calibrate_energy: 'on', crystal_radius, d_spacing required")
+        return
+
+    # Resolve the reference energy
+    if energy is None:
+        if element is None or element not in EMISSION_LINES:
+            run.update_status(
+                f"calibrate_energy: provide 'energy' or a known 'element' "
+                f"(got element={element!r})"
+            )
+            return
+        if line not in EMISSION_LINES[element]:
+            run.update_status(
+                f"calibrate_energy: line {line!r} not tabulated for {element}"
+            )
+            return
+        energy = EMISSION_LINES[element][line]
+
+    spec = getattr(run, spec_key, None)
+    if spec is None:
+        run.update_status(f"calibrate_energy: spectrum '{spec_key}' not found")
+        return
+    spec = np.asarray(spec, dtype=np.float64)
+    if spec.ndim > 1:
+        # collapse any leading axes; energy runs along the last (dispersion) axis
+        spec = spec.reshape(-1, spec.shape[-1]).sum(axis=0)
+
+    n_pixels = kwargs.get("n_pixels", spec.shape[-1])
+
+    # Locate the peak pixel (optionally restricted to a window)
+    if peak_window is not None:
+        lo, hi = int(peak_window[0]), int(peak_window[1])
+        p0 = lo + int(np.argmax(spec[lo:hi]))
+    else:
+        p0 = int(np.argmax(spec))
+
+    hc = 12398.42  # eV * Angstrom
+    gl = np.arange(n_pixels, dtype=np.float64) * mm_per_pixel
+    ll = gl / 2.0 - (np.amax(gl) - np.amin(gl)) / 4.0
+
+    # Closed-form solve for A so that E(p0) == energy
+    s = hc / (2.0 * d * energy)
+    if not (0.0 < s < 1.0):
+        run.update_status(
+            f"calibrate_energy: unphysical sin(theta)={s:.4f} for E={energy} "
+            f"(check d_spacing)"
+        )
+        return
+    A = R * np.sqrt(1.0 - s * s) / s - ll[p0]
+
+    energy_axis = hc / (2.0 * d * np.sin(np.arctan(R / (ll + A))))
+    setattr(run, f"{name}_energy", energy_axis)
+    setattr(run, f"{name}_calibrated_A", float(A))
+    # expose in results for reuse as the calibration on later measurements
+    if hasattr(run, "results") and isinstance(run.results, dict):
+        run.results[f"{name}_calibrated_A"] = float(A)
+        run.results[f"{name}_energy"] = energy_axis
+
+    run.update_status(
+        f"calibrate_energy: {name} line {element or ''} {line}={energy:.2f} eV at "
+        f"pixel {p0} -> A={A:.4f} mm; axis {energy_axis.min():.1f}-"
+        f"{energy_axis.max():.1f} eV"
+    )
+
+
 @register_step("patch_pixels")
 def patch_pixels(run, **kwargs):
     """Repair bad pixels using polynomial fitting from neighbors.

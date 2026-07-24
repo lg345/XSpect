@@ -28,6 +28,9 @@ class ExperimentConfig:
     hutch: str
     experiment_id: str
     lcls_run: int
+    smalldata_dir: "str | None" = None  # Optional override for the smalldata
+    # directory. If set, XSpect looks for {exp}_Run{run:04d}.h5 here instead of
+    # the default /sdf/data/lcls/ds/{hutch}/{exp}/hdf5/smalldata search list.
 
 
 @dataclass(frozen=True)
@@ -107,6 +110,7 @@ def _parse_experiment(raw: dict) -> ExperimentConfig:
         hutch=str(raw["hutch"]),
         experiment_id=str(raw["experiment_id"]),
         lcls_run=int(raw["lcls_run"]),
+        smalldata_dir=(str(raw["smalldata_dir"]) if raw.get("smalldata_dir") else None),
     )
 
 
