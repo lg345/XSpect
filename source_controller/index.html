@@ -23,7 +23,7 @@
       
       
       <link rel="icon" href="../assets/images/favicon.png">
-      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.6">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
     
     
       
@@ -31,7 +31,7 @@
       
     
     
-      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
       
         
         <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
@@ -1856,7 +1856,12 @@ registered steps, and collects results.</p>
 <span class="normal"><a href="#__codelineno-0-362">362</a></span>
 <span class="normal"><a href="#__codelineno-0-363">363</a></span>
 <span class="normal"><a href="#__codelineno-0-364">364</a></span>
-<span class="normal"><a href="#__codelineno-0-365">365</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="k">class</span><span class="w"> </span><span class="nc">Pipeline</span><span class="p">:</span>
+<span class="normal"><a href="#__codelineno-0-365">365</a></span>
+<span class="normal"><a href="#__codelineno-0-366">366</a></span>
+<span class="normal"><a href="#__codelineno-0-367">367</a></span>
+<span class="normal"><a href="#__codelineno-0-368">368</a></span>
+<span class="normal"><a href="#__codelineno-0-369">369</a></span>
+<span class="normal"><a href="#__codelineno-0-370">370</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-73" name="__codelineno-0-73"></a><span class="k">class</span><span class="w"> </span><span class="nc">Pipeline</span><span class="p">:</span>
 <a id="__codelineno-0-74" name="__codelineno-0-74"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
 <a id="__codelineno-0-75" name="__codelineno-0-75"></a><span class="sd">    YAML-driven analysis pipeline.</span>
 <a id="__codelineno-0-76" name="__codelineno-0-76"></a>
@@ -2067,88 +2072,93 @@ registered steps, and collects results.</p>
 <a id="__codelineno-0-281" name="__codelineno-0-281"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Create experiment object from config. Wraps the directory lookup failure gracefully.&quot;&quot;&quot;</span>
 <a id="__codelineno-0-282" name="__codelineno-0-282"></a>        <span class="n">cfg</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">experiment</span>
 <a id="__codelineno-0-283" name="__codelineno-0-283"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-284" name="__codelineno-0-284"></a>            <span class="n">exp</span> <span class="o">=</span> <span class="n">spectroscopy_experiment</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">lcls_run</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">hutch</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">experiment_id</span><span class="p">)</span>
-<a id="__codelineno-0-285" name="__codelineno-0-285"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-286" name="__codelineno-0-286"></a>            <span class="n">exp</span> <span class="o">=</span> <span class="n">_MockExperiment</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">lcls_run</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">hutch</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">experiment_id</span><span class="p">)</span>
-<a id="__codelineno-0-287" name="__codelineno-0-287"></a>        <span class="k">return</span> <span class="n">exp</span>
-<a id="__codelineno-0-288" name="__codelineno-0-288"></a>
-<a id="__codelineno-0-289" name="__codelineno-0-289"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_create_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">run_number</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
-<a id="__codelineno-0-290" name="__codelineno-0-290"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a spectroscopy_run for the given run number.&quot;&quot;&quot;</span>
-<a id="__codelineno-0-291" name="__codelineno-0-291"></a>        <span class="n">max_shots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">max_shots</span>
-<a id="__codelineno-0-292" name="__codelineno-0-292"></a>        <span class="n">end_index</span> <span class="o">=</span> <span class="n">max_shots</span> <span class="k">if</span> <span class="n">max_shots</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
-<a id="__codelineno-0-293" name="__codelineno-0-293"></a>        <span class="k">try</span><span class="p">:</span>
-<a id="__codelineno-0-294" name="__codelineno-0-294"></a>            <span class="n">run</span> <span class="o">=</span> <span class="n">spectroscopy_run</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">run_number</span><span class="p">,</span> <span class="n">end_index</span><span class="o">=</span><span class="n">end_index</span><span class="p">)</span>
-<a id="__codelineno-0-295" name="__codelineno-0-295"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
-<a id="__codelineno-0-296" name="__codelineno-0-296"></a>            <span class="n">run</span> <span class="o">=</span> <span class="n">spectroscopy_run</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">spectroscopy_run</span><span class="p">)</span>
-<a id="__codelineno-0-297" name="__codelineno-0-297"></a>            <span class="n">run</span><span class="o">.</span><span class="n">spec_experiment</span> <span class="o">=</span> <span class="n">exp</span>
-<a id="__codelineno-0-298" name="__codelineno-0-298"></a>            <span class="n">run</span><span class="o">.</span><span class="n">run_number</span> <span class="o">=</span> <span class="n">run_number</span>
-<a id="__codelineno-0-299" name="__codelineno-0-299"></a>            <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="o">=</span> <span class="kc">None</span>
-<a id="__codelineno-0-300" name="__codelineno-0-300"></a>            <span class="n">run</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-301" name="__codelineno-0-301"></a>            <span class="n">run</span><span class="o">.</span><span class="n">status_datetime</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-302" name="__codelineno-0-302"></a>            <span class="n">run</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="kc">False</span>
-<a id="__codelineno-0-303" name="__codelineno-0-303"></a>            <span class="n">run</span><span class="o">.</span><span class="n">end_index</span> <span class="o">=</span> <span class="n">end_index</span>
-<a id="__codelineno-0-304" name="__codelineno-0-304"></a>            <span class="n">run</span><span class="o">.</span><span class="n">start_index</span> <span class="o">=</span> <span class="mi">0</span>
-<a id="__codelineno-0-305" name="__codelineno-0-305"></a>            <span class="n">run</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-306" name="__codelineno-0-306"></a>        <span class="k">return</span> <span class="n">run</span>
-<a id="__codelineno-0-307" name="__codelineno-0-307"></a>
-<a id="__codelineno-0-308" name="__codelineno-0-308"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_load_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">,</span> <span class="n">skip_detector</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
-<a id="__codelineno-0-309" name="__codelineno-0-309"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Load data keys into the run if the HDF5 file is accessible.</span>
-<a id="__codelineno-0-310" name="__codelineno-0-310"></a>
-<a id="__codelineno-0-311" name="__codelineno-0-311"></a><span class="sd">        Parameters</span>
-<a id="__codelineno-0-312" name="__codelineno-0-312"></a><span class="sd">        ----------</span>
-<a id="__codelineno-0-313" name="__codelineno-0-313"></a><span class="sd">        skip_detector : bool</span>
-<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="sd">            If True, skip loading detector arrays (used when batching will</span>
-<a id="__codelineno-0-315" name="__codelineno-0-315"></a><span class="sd">            reload per-batch from HDF5 to avoid loading multi-GB arrays).</span>
-<a id="__codelineno-0-316" name="__codelineno-0-316"></a><span class="sd">        &quot;&quot;&quot;</span>
-<a id="__codelineno-0-317" name="__codelineno-0-317"></a>        <span class="k">if</span> <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_file_exists</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">run_file</span><span class="p">):</span>
-<a id="__codelineno-0-318" name="__codelineno-0-318"></a>            <span class="k">return</span>
-<a id="__codelineno-0-319" name="__codelineno-0-319"></a>
-<a id="__codelineno-0-320" name="__codelineno-0-320"></a>        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">dk</span><span class="o">.</span><span class="n">hdf5_path</span> <span class="k">for</span> <span class="n">dk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
-<a id="__codelineno-0-321" name="__codelineno-0-321"></a>        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">dk</span><span class="o">.</span><span class="n">friendly_name</span> <span class="k">for</span> <span class="n">dk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
-<a id="__codelineno-0-322" name="__codelineno-0-322"></a>        <span class="k">if</span> <span class="n">keys</span><span class="p">:</span>
-<a id="__codelineno-0-323" name="__codelineno-0-323"></a>            <span class="n">run</span><span class="o">.</span><span class="n">load_run_keys</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+<a id="__codelineno-0-284" name="__codelineno-0-284"></a>            <span class="n">exp</span> <span class="o">=</span> <span class="n">spectroscopy_experiment</span><span class="p">(</span>
+<a id="__codelineno-0-285" name="__codelineno-0-285"></a>                <span class="n">cfg</span><span class="o">.</span><span class="n">lcls_run</span><span class="p">,</span>
+<a id="__codelineno-0-286" name="__codelineno-0-286"></a>                <span class="n">cfg</span><span class="o">.</span><span class="n">hutch</span><span class="p">,</span>
+<a id="__codelineno-0-287" name="__codelineno-0-287"></a>                <span class="n">cfg</span><span class="o">.</span><span class="n">experiment_id</span><span class="p">,</span>
+<a id="__codelineno-0-288" name="__codelineno-0-288"></a>                <span class="n">smalldata_dir</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">smalldata_dir</span><span class="p">,</span>
+<a id="__codelineno-0-289" name="__codelineno-0-289"></a>            <span class="p">)</span>
+<a id="__codelineno-0-290" name="__codelineno-0-290"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-291" name="__codelineno-0-291"></a>            <span class="n">exp</span> <span class="o">=</span> <span class="n">_MockExperiment</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">lcls_run</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">hutch</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">experiment_id</span><span class="p">)</span>
+<a id="__codelineno-0-292" name="__codelineno-0-292"></a>        <span class="k">return</span> <span class="n">exp</span>
+<a id="__codelineno-0-293" name="__codelineno-0-293"></a>
+<a id="__codelineno-0-294" name="__codelineno-0-294"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_create_run</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">exp</span><span class="p">,</span> <span class="n">run_number</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<a id="__codelineno-0-295" name="__codelineno-0-295"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Create a spectroscopy_run for the given run number.&quot;&quot;&quot;</span>
+<a id="__codelineno-0-296" name="__codelineno-0-296"></a>        <span class="n">max_shots</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">max_shots</span>
+<a id="__codelineno-0-297" name="__codelineno-0-297"></a>        <span class="n">end_index</span> <span class="o">=</span> <span class="n">max_shots</span> <span class="k">if</span> <span class="n">max_shots</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="o">-</span><span class="mi">1</span>
+<a id="__codelineno-0-298" name="__codelineno-0-298"></a>        <span class="k">try</span><span class="p">:</span>
+<a id="__codelineno-0-299" name="__codelineno-0-299"></a>            <span class="n">run</span> <span class="o">=</span> <span class="n">spectroscopy_run</span><span class="p">(</span><span class="n">exp</span><span class="p">,</span> <span class="n">run_number</span><span class="p">,</span> <span class="n">end_index</span><span class="o">=</span><span class="n">end_index</span><span class="p">)</span>
+<a id="__codelineno-0-300" name="__codelineno-0-300"></a>        <span class="k">except</span> <span class="ne">Exception</span><span class="p">:</span>
+<a id="__codelineno-0-301" name="__codelineno-0-301"></a>            <span class="n">run</span> <span class="o">=</span> <span class="n">spectroscopy_run</span><span class="o">.</span><span class="fm">__new__</span><span class="p">(</span><span class="n">spectroscopy_run</span><span class="p">)</span>
+<a id="__codelineno-0-302" name="__codelineno-0-302"></a>            <span class="n">run</span><span class="o">.</span><span class="n">spec_experiment</span> <span class="o">=</span> <span class="n">exp</span>
+<a id="__codelineno-0-303" name="__codelineno-0-303"></a>            <span class="n">run</span><span class="o">.</span><span class="n">run_number</span> <span class="o">=</span> <span class="n">run_number</span>
+<a id="__codelineno-0-304" name="__codelineno-0-304"></a>            <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="o">=</span> <span class="kc">None</span>
+<a id="__codelineno-0-305" name="__codelineno-0-305"></a>            <span class="n">run</span><span class="o">.</span><span class="n">status</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-306" name="__codelineno-0-306"></a>            <span class="n">run</span><span class="o">.</span><span class="n">status_datetime</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-307" name="__codelineno-0-307"></a>            <span class="n">run</span><span class="o">.</span><span class="n">verbose</span> <span class="o">=</span> <span class="kc">False</span>
+<a id="__codelineno-0-308" name="__codelineno-0-308"></a>            <span class="n">run</span><span class="o">.</span><span class="n">end_index</span> <span class="o">=</span> <span class="n">end_index</span>
+<a id="__codelineno-0-309" name="__codelineno-0-309"></a>            <span class="n">run</span><span class="o">.</span><span class="n">start_index</span> <span class="o">=</span> <span class="mi">0</span>
+<a id="__codelineno-0-310" name="__codelineno-0-310"></a>            <span class="n">run</span><span class="o">.</span><span class="n">results</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-311" name="__codelineno-0-311"></a>        <span class="k">return</span> <span class="n">run</span>
+<a id="__codelineno-0-312" name="__codelineno-0-312"></a>
+<a id="__codelineno-0-313" name="__codelineno-0-313"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_load_data</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">,</span> <span class="n">skip_detector</span><span class="o">=</span><span class="kc">False</span><span class="p">):</span>
+<a id="__codelineno-0-314" name="__codelineno-0-314"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Load data keys into the run if the HDF5 file is accessible.</span>
+<a id="__codelineno-0-315" name="__codelineno-0-315"></a>
+<a id="__codelineno-0-316" name="__codelineno-0-316"></a><span class="sd">        Parameters</span>
+<a id="__codelineno-0-317" name="__codelineno-0-317"></a><span class="sd">        ----------</span>
+<a id="__codelineno-0-318" name="__codelineno-0-318"></a><span class="sd">        skip_detector : bool</span>
+<a id="__codelineno-0-319" name="__codelineno-0-319"></a><span class="sd">            If True, skip loading detector arrays (used when batching will</span>
+<a id="__codelineno-0-320" name="__codelineno-0-320"></a><span class="sd">            reload per-batch from HDF5 to avoid loading multi-GB arrays).</span>
+<a id="__codelineno-0-321" name="__codelineno-0-321"></a><span class="sd">        &quot;&quot;&quot;</span>
+<a id="__codelineno-0-322" name="__codelineno-0-322"></a>        <span class="k">if</span> <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_file_exists</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">run_file</span><span class="p">):</span>
+<a id="__codelineno-0-323" name="__codelineno-0-323"></a>            <span class="k">return</span>
 <a id="__codelineno-0-324" name="__codelineno-0-324"></a>
-<a id="__codelineno-0-325" name="__codelineno-0-325"></a>        <span class="n">run</span><span class="o">.</span><span class="n">get_run_shot_properties</span><span class="p">()</span>
-<a id="__codelineno-0-326" name="__codelineno-0-326"></a>
-<a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">skip_detector</span><span class="p">:</span>
-<a id="__codelineno-0-328" name="__codelineno-0-328"></a>            <span class="k">for</span> <span class="n">det_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">detector_keys</span><span class="p">:</span>
-<a id="__codelineno-0-329" name="__codelineno-0-329"></a>                <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-330" name="__codelineno-0-330"></a>                <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-331" name="__codelineno-0-331"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;rois&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span>
-<a id="__codelineno-0-332" name="__codelineno-0-332"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;combine&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">combine_rois</span>
-<a id="__codelineno-0-333" name="__codelineno-0-333"></a>                <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-334" name="__codelineno-0-334"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;row_range&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span>
-<a id="__codelineno-0-335" name="__codelineno-0-335"></a>                <span class="n">run</span><span class="o">.</span><span class="n">load_run_key_delayed</span><span class="p">(</span>
-<a id="__codelineno-0-336" name="__codelineno-0-336"></a>                    <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">hdf5_path</span><span class="p">],</span>
-<a id="__codelineno-0-337" name="__codelineno-0-337"></a>                    <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">name</span><span class="p">],</span>
-<a id="__codelineno-0-338" name="__codelineno-0-338"></a>                    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
-<a id="__codelineno-0-339" name="__codelineno-0-339"></a>                <span class="p">)</span>
-<a id="__codelineno-0-340" name="__codelineno-0-340"></a>
-<a id="__codelineno-0-341" name="__codelineno-0-341"></a>            <span class="c1"># Close the h5py file handle so the run object is picklable for multiprocessing</span>
-<a id="__codelineno-0-342" name="__codelineno-0-342"></a>            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">run</span><span class="p">,</span> <span class="s2">&quot;h5&quot;</span><span class="p">):</span>
-<a id="__codelineno-0-343" name="__codelineno-0-343"></a>                <span class="n">run</span><span class="o">.</span><span class="n">h5</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<a id="__codelineno-0-344" name="__codelineno-0-344"></a>                <span class="k">del</span> <span class="n">run</span><span class="o">.</span><span class="n">h5</span>
+<a id="__codelineno-0-325" name="__codelineno-0-325"></a>        <span class="n">keys</span> <span class="o">=</span> <span class="p">[</span><span class="n">dk</span><span class="o">.</span><span class="n">hdf5_path</span> <span class="k">for</span> <span class="n">dk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
+<a id="__codelineno-0-326" name="__codelineno-0-326"></a>        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="n">dk</span><span class="o">.</span><span class="n">friendly_name</span> <span class="k">for</span> <span class="n">dk</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">keys</span><span class="p">]</span>
+<a id="__codelineno-0-327" name="__codelineno-0-327"></a>        <span class="k">if</span> <span class="n">keys</span><span class="p">:</span>
+<a id="__codelineno-0-328" name="__codelineno-0-328"></a>            <span class="n">run</span><span class="o">.</span><span class="n">load_run_keys</span><span class="p">(</span><span class="n">keys</span><span class="p">,</span> <span class="n">names</span><span class="p">)</span>
+<a id="__codelineno-0-329" name="__codelineno-0-329"></a>
+<a id="__codelineno-0-330" name="__codelineno-0-330"></a>        <span class="n">run</span><span class="o">.</span><span class="n">get_run_shot_properties</span><span class="p">()</span>
+<a id="__codelineno-0-331" name="__codelineno-0-331"></a>
+<a id="__codelineno-0-332" name="__codelineno-0-332"></a>        <span class="k">if</span> <span class="ow">not</span> <span class="n">skip_detector</span><span class="p">:</span>
+<a id="__codelineno-0-333" name="__codelineno-0-333"></a>            <span class="k">for</span> <span class="n">det_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">detector_keys</span><span class="p">:</span>
+<a id="__codelineno-0-334" name="__codelineno-0-334"></a>                <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-335" name="__codelineno-0-335"></a>                <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-336" name="__codelineno-0-336"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;rois&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span>
+<a id="__codelineno-0-337" name="__codelineno-0-337"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;combine&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">combine_rois</span>
+<a id="__codelineno-0-338" name="__codelineno-0-338"></a>                <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-339" name="__codelineno-0-339"></a>                    <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;row_range&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span>
+<a id="__codelineno-0-340" name="__codelineno-0-340"></a>                <span class="n">run</span><span class="o">.</span><span class="n">load_run_key_delayed</span><span class="p">(</span>
+<a id="__codelineno-0-341" name="__codelineno-0-341"></a>                    <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">hdf5_path</span><span class="p">],</span>
+<a id="__codelineno-0-342" name="__codelineno-0-342"></a>                    <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">name</span><span class="p">],</span>
+<a id="__codelineno-0-343" name="__codelineno-0-343"></a>                    <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<a id="__codelineno-0-344" name="__codelineno-0-344"></a>                <span class="p">)</span>
 <a id="__codelineno-0-345" name="__codelineno-0-345"></a>
-<a id="__codelineno-0-346" name="__codelineno-0-346"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_load_detector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">):</span>
-<a id="__codelineno-0-347" name="__codelineno-0-347"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Load detector data into run (for non-batched path).&quot;&quot;&quot;</span>
-<a id="__codelineno-0-348" name="__codelineno-0-348"></a>        <span class="k">if</span> <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_file_exists</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">run_file</span><span class="p">):</span>
-<a id="__codelineno-0-349" name="__codelineno-0-349"></a>            <span class="k">return</span>
-<a id="__codelineno-0-350" name="__codelineno-0-350"></a>        <span class="k">for</span> <span class="n">det_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">detector_keys</span><span class="p">:</span>
-<a id="__codelineno-0-351" name="__codelineno-0-351"></a>            <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
-<a id="__codelineno-0-352" name="__codelineno-0-352"></a>            <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-353" name="__codelineno-0-353"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;rois&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span>
-<a id="__codelineno-0-354" name="__codelineno-0-354"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;combine&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">combine_rois</span>
-<a id="__codelineno-0-355" name="__codelineno-0-355"></a>            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;transpose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">transpose</span>
-<a id="__codelineno-0-356" name="__codelineno-0-356"></a>            <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
-<a id="__codelineno-0-357" name="__codelineno-0-357"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;row_range&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span>
-<a id="__codelineno-0-358" name="__codelineno-0-358"></a>            <span class="n">run</span><span class="o">.</span><span class="n">load_run_key_delayed</span><span class="p">(</span>
-<a id="__codelineno-0-359" name="__codelineno-0-359"></a>                <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">hdf5_path</span><span class="p">],</span>
-<a id="__codelineno-0-360" name="__codelineno-0-360"></a>                <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">name</span><span class="p">],</span>
-<a id="__codelineno-0-361" name="__codelineno-0-361"></a>                <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
-<a id="__codelineno-0-362" name="__codelineno-0-362"></a>            <span class="p">)</span>
-<a id="__codelineno-0-363" name="__codelineno-0-363"></a>        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">run</span><span class="p">,</span> <span class="s2">&quot;h5&quot;</span><span class="p">):</span>
-<a id="__codelineno-0-364" name="__codelineno-0-364"></a>            <span class="n">run</span><span class="o">.</span><span class="n">h5</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
-<a id="__codelineno-0-365" name="__codelineno-0-365"></a>            <span class="k">del</span> <span class="n">run</span><span class="o">.</span><span class="n">h5</span>
+<a id="__codelineno-0-346" name="__codelineno-0-346"></a>            <span class="c1"># Close the h5py file handle so the run object is picklable for multiprocessing</span>
+<a id="__codelineno-0-347" name="__codelineno-0-347"></a>            <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">run</span><span class="p">,</span> <span class="s2">&quot;h5&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-348" name="__codelineno-0-348"></a>                <span class="n">run</span><span class="o">.</span><span class="n">h5</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-0-349" name="__codelineno-0-349"></a>                <span class="k">del</span> <span class="n">run</span><span class="o">.</span><span class="n">h5</span>
+<a id="__codelineno-0-350" name="__codelineno-0-350"></a>
+<a id="__codelineno-0-351" name="__codelineno-0-351"></a>    <span class="k">def</span><span class="w"> </span><span class="nf">_load_detector</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">run</span><span class="p">):</span>
+<a id="__codelineno-0-352" name="__codelineno-0-352"></a><span class="w">        </span><span class="sd">&quot;&quot;&quot;Load detector data into run (for non-batched path).&quot;&quot;&quot;</span>
+<a id="__codelineno-0-353" name="__codelineno-0-353"></a>        <span class="k">if</span> <span class="n">run</span><span class="o">.</span><span class="n">run_file</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">_file_exists</span><span class="p">(</span><span class="n">run</span><span class="o">.</span><span class="n">run_file</span><span class="p">):</span>
+<a id="__codelineno-0-354" name="__codelineno-0-354"></a>            <span class="k">return</span>
+<a id="__codelineno-0-355" name="__codelineno-0-355"></a>        <span class="k">for</span> <span class="n">det_config</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">config</span><span class="o">.</span><span class="n">data</span><span class="o">.</span><span class="n">detector_keys</span><span class="p">:</span>
+<a id="__codelineno-0-356" name="__codelineno-0-356"></a>            <span class="n">kwargs</span> <span class="o">=</span> <span class="p">{}</span>
+<a id="__codelineno-0-357" name="__codelineno-0-357"></a>            <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-358" name="__codelineno-0-358"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;rois&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">rois</span>
+<a id="__codelineno-0-359" name="__codelineno-0-359"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;combine&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">combine_rois</span>
+<a id="__codelineno-0-360" name="__codelineno-0-360"></a>            <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;transpose&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">transpose</span>
+<a id="__codelineno-0-361" name="__codelineno-0-361"></a>            <span class="k">if</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+<a id="__codelineno-0-362" name="__codelineno-0-362"></a>                <span class="n">kwargs</span><span class="p">[</span><span class="s2">&quot;row_range&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">det_config</span><span class="o">.</span><span class="n">row_range</span>
+<a id="__codelineno-0-363" name="__codelineno-0-363"></a>            <span class="n">run</span><span class="o">.</span><span class="n">load_run_key_delayed</span><span class="p">(</span>
+<a id="__codelineno-0-364" name="__codelineno-0-364"></a>                <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">hdf5_path</span><span class="p">],</span>
+<a id="__codelineno-0-365" name="__codelineno-0-365"></a>                <span class="p">[</span><span class="n">det_config</span><span class="o">.</span><span class="n">name</span><span class="p">],</span>
+<a id="__codelineno-0-366" name="__codelineno-0-366"></a>                <span class="o">**</span><span class="n">kwargs</span><span class="p">,</span>
+<a id="__codelineno-0-367" name="__codelineno-0-367"></a>            <span class="p">)</span>
+<a id="__codelineno-0-368" name="__codelineno-0-368"></a>        <span class="k">if</span> <span class="nb">hasattr</span><span class="p">(</span><span class="n">run</span><span class="p">,</span> <span class="s2">&quot;h5&quot;</span><span class="p">):</span>
+<a id="__codelineno-0-369" name="__codelineno-0-369"></a>            <span class="n">run</span><span class="o">.</span><span class="n">h5</span><span class="o">.</span><span class="n">close</span><span class="p">()</span>
+<a id="__codelineno-0-370" name="__codelineno-0-370"></a>            <span class="k">del</span> <span class="n">run</span><span class="o">.</span><span class="n">h5</span>
 </code></pre></div></td></tr></table></div>
               </details>
 
@@ -2922,11 +2932,7 @@ that all referenced steps exist in the registry.</p>
 
             <details class="mkdocstrings-source">
               <summary>Source code in <code>XSpect/controller/config_parser.py</code></summary>
-              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-206">206</a></span>
-<span class="normal"><a href="#__codelineno-0-207">207</a></span>
-<span class="normal"><a href="#__codelineno-0-208">208</a></span>
-<span class="normal"><a href="#__codelineno-0-209">209</a></span>
-<span class="normal"><a href="#__codelineno-0-210">210</a></span>
+              <div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"><a href="#__codelineno-0-210">210</a></span>
 <span class="normal"><a href="#__codelineno-0-211">211</a></span>
 <span class="normal"><a href="#__codelineno-0-212">212</a></span>
 <span class="normal"><a href="#__codelineno-0-213">213</a></span>
@@ -2985,70 +2991,74 @@ that all referenced steps exist in the registry.</p>
 <span class="normal"><a href="#__codelineno-0-266">266</a></span>
 <span class="normal"><a href="#__codelineno-0-267">267</a></span>
 <span class="normal"><a href="#__codelineno-0-268">268</a></span>
-<span class="normal"><a href="#__codelineno-0-269">269</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-206" name="__codelineno-0-206"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_yaml</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">validate_steps</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PipelineConfig</span><span class="p">:</span>
-<a id="__codelineno-0-207" name="__codelineno-0-207"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
-<a id="__codelineno-0-208" name="__codelineno-0-208"></a><span class="sd">    Parse a YAML pipeline configuration file.</span>
-<a id="__codelineno-0-209" name="__codelineno-0-209"></a>
-<a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="sd">    Parameters</span>
-<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="sd">    ----------</span>
-<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">    path : str</span>
-<a id="__codelineno-0-213" name="__codelineno-0-213"></a><span class="sd">        Path to the YAML file.</span>
-<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">    validate_steps : bool</span>
-<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">        If True, validate that all step names exist in the registry.</span>
-<a id="__codelineno-0-216" name="__codelineno-0-216"></a>
-<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">    Returns</span>
-<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">    -------</span>
-<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">    PipelineConfig</span>
-<a id="__codelineno-0-220" name="__codelineno-0-220"></a><span class="sd">        Frozen dataclass with all configuration sections.</span>
-<a id="__codelineno-0-221" name="__codelineno-0-221"></a>
-<a id="__codelineno-0-222" name="__codelineno-0-222"></a><span class="sd">    Raises</span>
-<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">    ------</span>
-<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">    ConfigValidationError</span>
-<a id="__codelineno-0-225" name="__codelineno-0-225"></a><span class="sd">        If the YAML is missing required sections or contains invalid entries.</span>
-<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">    &quot;&quot;&quot;</span>
-<a id="__codelineno-0-227" name="__codelineno-0-227"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
-<a id="__codelineno-0-228" name="__codelineno-0-228"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
-<a id="__codelineno-0-229" name="__codelineno-0-229"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Config file not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-230" name="__codelineno-0-230"></a>
-<a id="__codelineno-0-231" name="__codelineno-0-231"></a>    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
-<a id="__codelineno-0-232" name="__codelineno-0-232"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
-<a id="__codelineno-0-233" name="__codelineno-0-233"></a>
-<a id="__codelineno-0-234" name="__codelineno-0-234"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
-<a id="__codelineno-0-235" name="__codelineno-0-235"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;YAML root must be a mapping&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-236" name="__codelineno-0-236"></a>
-<a id="__codelineno-0-237" name="__codelineno-0-237"></a>    <span class="k">if</span> <span class="s2">&quot;experiment&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
-<a id="__codelineno-0-238" name="__codelineno-0-238"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;experiment&#39;&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-239" name="__codelineno-0-239"></a>    <span class="k">if</span> <span class="s2">&quot;data&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
-<a id="__codelineno-0-240" name="__codelineno-0-240"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;data&#39;&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-241" name="__codelineno-0-241"></a>    <span class="k">if</span> <span class="s2">&quot;pipeline&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
-<a id="__codelineno-0-242" name="__codelineno-0-242"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;pipeline&#39;&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-243" name="__codelineno-0-243"></a>
-<a id="__codelineno-0-244" name="__codelineno-0-244"></a>    <span class="n">experiment</span> <span class="o">=</span> <span class="n">_parse_experiment</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;experiment&quot;</span><span class="p">])</span>
-<a id="__codelineno-0-245" name="__codelineno-0-245"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">_parse_data</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">])</span>
-<a id="__codelineno-0-246" name="__codelineno-0-246"></a>    <span class="n">pipeline_steps</span> <span class="o">=</span> <span class="n">_parse_steps</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;pipeline&quot;</span><span class="p">],</span> <span class="s2">&quot;pipeline&quot;</span><span class="p">)</span>
+<span class="normal"><a href="#__codelineno-0-269">269</a></span>
+<span class="normal"><a href="#__codelineno-0-270">270</a></span>
+<span class="normal"><a href="#__codelineno-0-271">271</a></span>
+<span class="normal"><a href="#__codelineno-0-272">272</a></span>
+<span class="normal"><a href="#__codelineno-0-273">273</a></span></pre></div></td><td class="code"><div><pre><span></span><code><a id="__codelineno-0-210" name="__codelineno-0-210"></a><span class="k">def</span><span class="w"> </span><span class="nf">parse_yaml</span><span class="p">(</span><span class="n">path</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">validate_steps</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">PipelineConfig</span><span class="p">:</span>
+<a id="__codelineno-0-211" name="__codelineno-0-211"></a><span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<a id="__codelineno-0-212" name="__codelineno-0-212"></a><span class="sd">    Parse a YAML pipeline configuration file.</span>
+<a id="__codelineno-0-213" name="__codelineno-0-213"></a>
+<a id="__codelineno-0-214" name="__codelineno-0-214"></a><span class="sd">    Parameters</span>
+<a id="__codelineno-0-215" name="__codelineno-0-215"></a><span class="sd">    ----------</span>
+<a id="__codelineno-0-216" name="__codelineno-0-216"></a><span class="sd">    path : str</span>
+<a id="__codelineno-0-217" name="__codelineno-0-217"></a><span class="sd">        Path to the YAML file.</span>
+<a id="__codelineno-0-218" name="__codelineno-0-218"></a><span class="sd">    validate_steps : bool</span>
+<a id="__codelineno-0-219" name="__codelineno-0-219"></a><span class="sd">        If True, validate that all step names exist in the registry.</span>
+<a id="__codelineno-0-220" name="__codelineno-0-220"></a>
+<a id="__codelineno-0-221" name="__codelineno-0-221"></a><span class="sd">    Returns</span>
+<a id="__codelineno-0-222" name="__codelineno-0-222"></a><span class="sd">    -------</span>
+<a id="__codelineno-0-223" name="__codelineno-0-223"></a><span class="sd">    PipelineConfig</span>
+<a id="__codelineno-0-224" name="__codelineno-0-224"></a><span class="sd">        Frozen dataclass with all configuration sections.</span>
+<a id="__codelineno-0-225" name="__codelineno-0-225"></a>
+<a id="__codelineno-0-226" name="__codelineno-0-226"></a><span class="sd">    Raises</span>
+<a id="__codelineno-0-227" name="__codelineno-0-227"></a><span class="sd">    ------</span>
+<a id="__codelineno-0-228" name="__codelineno-0-228"></a><span class="sd">    ConfigValidationError</span>
+<a id="__codelineno-0-229" name="__codelineno-0-229"></a><span class="sd">        If the YAML is missing required sections or contains invalid entries.</span>
+<a id="__codelineno-0-230" name="__codelineno-0-230"></a><span class="sd">    &quot;&quot;&quot;</span>
+<a id="__codelineno-0-231" name="__codelineno-0-231"></a>    <span class="n">path</span> <span class="o">=</span> <span class="n">Path</span><span class="p">(</span><span class="n">path</span><span class="p">)</span>
+<a id="__codelineno-0-232" name="__codelineno-0-232"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="n">path</span><span class="o">.</span><span class="n">exists</span><span class="p">():</span>
+<a id="__codelineno-0-233" name="__codelineno-0-233"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Config file not found: </span><span class="si">{</span><span class="n">path</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-234" name="__codelineno-0-234"></a>
+<a id="__codelineno-0-235" name="__codelineno-0-235"></a>    <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">path</span><span class="p">,</span> <span class="s2">&quot;r&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
+<a id="__codelineno-0-236" name="__codelineno-0-236"></a>        <span class="n">raw</span> <span class="o">=</span> <span class="n">yaml</span><span class="o">.</span><span class="n">safe_load</span><span class="p">(</span><span class="n">f</span><span class="p">)</span>
+<a id="__codelineno-0-237" name="__codelineno-0-237"></a>
+<a id="__codelineno-0-238" name="__codelineno-0-238"></a>    <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">raw</span><span class="p">,</span> <span class="nb">dict</span><span class="p">):</span>
+<a id="__codelineno-0-239" name="__codelineno-0-239"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;YAML root must be a mapping&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-240" name="__codelineno-0-240"></a>
+<a id="__codelineno-0-241" name="__codelineno-0-241"></a>    <span class="k">if</span> <span class="s2">&quot;experiment&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+<a id="__codelineno-0-242" name="__codelineno-0-242"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;experiment&#39;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-243" name="__codelineno-0-243"></a>    <span class="k">if</span> <span class="s2">&quot;data&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+<a id="__codelineno-0-244" name="__codelineno-0-244"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;data&#39;&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-245" name="__codelineno-0-245"></a>    <span class="k">if</span> <span class="s2">&quot;pipeline&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">raw</span><span class="p">:</span>
+<a id="__codelineno-0-246" name="__codelineno-0-246"></a>        <span class="k">raise</span> <span class="n">ConfigValidationError</span><span class="p">(</span><span class="s2">&quot;Missing required section: &#39;pipeline&#39;&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-247" name="__codelineno-0-247"></a>
-<a id="__codelineno-0-248" name="__codelineno-0-248"></a>    <span class="n">reduction_steps</span> <span class="o">=</span> <span class="p">[]</span>
-<a id="__codelineno-0-249" name="__codelineno-0-249"></a>    <span class="k">if</span> <span class="s2">&quot;reduction&quot;</span> <span class="ow">in</span> <span class="n">raw</span> <span class="ow">and</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;reduction&quot;</span><span class="p">]:</span>
-<a id="__codelineno-0-250" name="__codelineno-0-250"></a>        <span class="n">reduction_steps</span> <span class="o">=</span> <span class="n">_parse_steps</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;reduction&quot;</span><span class="p">],</span> <span class="s2">&quot;reduction&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-248" name="__codelineno-0-248"></a>    <span class="n">experiment</span> <span class="o">=</span> <span class="n">_parse_experiment</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;experiment&quot;</span><span class="p">])</span>
+<a id="__codelineno-0-249" name="__codelineno-0-249"></a>    <span class="n">data</span> <span class="o">=</span> <span class="n">_parse_data</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;data&quot;</span><span class="p">])</span>
+<a id="__codelineno-0-250" name="__codelineno-0-250"></a>    <span class="n">pipeline_steps</span> <span class="o">=</span> <span class="n">_parse_steps</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;pipeline&quot;</span><span class="p">],</span> <span class="s2">&quot;pipeline&quot;</span><span class="p">)</span>
 <a id="__codelineno-0-251" name="__codelineno-0-251"></a>
-<a id="__codelineno-0-252" name="__codelineno-0-252"></a>    <span class="n">output</span> <span class="o">=</span> <span class="n">OutputConfig</span><span class="p">()</span>
-<a id="__codelineno-0-253" name="__codelineno-0-253"></a>    <span class="k">if</span> <span class="s2">&quot;output&quot;</span> <span class="ow">in</span> <span class="n">raw</span> <span class="ow">and</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]:</span>
-<a id="__codelineno-0-254" name="__codelineno-0-254"></a>        <span class="n">output</span> <span class="o">=</span> <span class="n">OutputConfig</span><span class="p">(</span>
-<a id="__codelineno-0-255" name="__codelineno-0-255"></a>            <span class="nb">format</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;format&quot;</span><span class="p">,</span> <span class="s2">&quot;hdf5&quot;</span><span class="p">),</span>
-<a id="__codelineno-0-256" name="__codelineno-0-256"></a>            <span class="n">path</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">,</span> <span class="s2">&quot;./results/&quot;</span><span class="p">),</span>
-<a id="__codelineno-0-257" name="__codelineno-0-257"></a>        <span class="p">)</span>
-<a id="__codelineno-0-258" name="__codelineno-0-258"></a>
-<a id="__codelineno-0-259" name="__codelineno-0-259"></a>    <span class="k">if</span> <span class="n">validate_steps</span><span class="p">:</span>
-<a id="__codelineno-0-260" name="__codelineno-0-260"></a>        <span class="n">_validate_step_names</span><span class="p">(</span><span class="n">pipeline_steps</span><span class="p">,</span> <span class="s2">&quot;pipeline&quot;</span><span class="p">)</span>
-<a id="__codelineno-0-261" name="__codelineno-0-261"></a>        <span class="n">_validate_step_names</span><span class="p">(</span><span class="n">reduction_steps</span><span class="p">,</span> <span class="s2">&quot;reduction&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-252" name="__codelineno-0-252"></a>    <span class="n">reduction_steps</span> <span class="o">=</span> <span class="p">[]</span>
+<a id="__codelineno-0-253" name="__codelineno-0-253"></a>    <span class="k">if</span> <span class="s2">&quot;reduction&quot;</span> <span class="ow">in</span> <span class="n">raw</span> <span class="ow">and</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;reduction&quot;</span><span class="p">]:</span>
+<a id="__codelineno-0-254" name="__codelineno-0-254"></a>        <span class="n">reduction_steps</span> <span class="o">=</span> <span class="n">_parse_steps</span><span class="p">(</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;reduction&quot;</span><span class="p">],</span> <span class="s2">&quot;reduction&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-255" name="__codelineno-0-255"></a>
+<a id="__codelineno-0-256" name="__codelineno-0-256"></a>    <span class="n">output</span> <span class="o">=</span> <span class="n">OutputConfig</span><span class="p">()</span>
+<a id="__codelineno-0-257" name="__codelineno-0-257"></a>    <span class="k">if</span> <span class="s2">&quot;output&quot;</span> <span class="ow">in</span> <span class="n">raw</span> <span class="ow">and</span> <span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]:</span>
+<a id="__codelineno-0-258" name="__codelineno-0-258"></a>        <span class="n">output</span> <span class="o">=</span> <span class="n">OutputConfig</span><span class="p">(</span>
+<a id="__codelineno-0-259" name="__codelineno-0-259"></a>            <span class="nb">format</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;format&quot;</span><span class="p">,</span> <span class="s2">&quot;hdf5&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-260" name="__codelineno-0-260"></a>            <span class="n">path</span><span class="o">=</span><span class="n">raw</span><span class="p">[</span><span class="s2">&quot;output&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;path&quot;</span><span class="p">,</span> <span class="s2">&quot;./results/&quot;</span><span class="p">),</span>
+<a id="__codelineno-0-261" name="__codelineno-0-261"></a>        <span class="p">)</span>
 <a id="__codelineno-0-262" name="__codelineno-0-262"></a>
-<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="k">return</span> <span class="n">PipelineConfig</span><span class="p">(</span>
-<a id="__codelineno-0-264" name="__codelineno-0-264"></a>        <span class="n">experiment</span><span class="o">=</span><span class="n">experiment</span><span class="p">,</span>
-<a id="__codelineno-0-265" name="__codelineno-0-265"></a>        <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
-<a id="__codelineno-0-266" name="__codelineno-0-266"></a>        <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline_steps</span><span class="p">,</span>
-<a id="__codelineno-0-267" name="__codelineno-0-267"></a>        <span class="n">reduction</span><span class="o">=</span><span class="n">reduction_steps</span><span class="p">,</span>
-<a id="__codelineno-0-268" name="__codelineno-0-268"></a>        <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span>
-<a id="__codelineno-0-269" name="__codelineno-0-269"></a>    <span class="p">)</span>
+<a id="__codelineno-0-263" name="__codelineno-0-263"></a>    <span class="k">if</span> <span class="n">validate_steps</span><span class="p">:</span>
+<a id="__codelineno-0-264" name="__codelineno-0-264"></a>        <span class="n">_validate_step_names</span><span class="p">(</span><span class="n">pipeline_steps</span><span class="p">,</span> <span class="s2">&quot;pipeline&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-265" name="__codelineno-0-265"></a>        <span class="n">_validate_step_names</span><span class="p">(</span><span class="n">reduction_steps</span><span class="p">,</span> <span class="s2">&quot;reduction&quot;</span><span class="p">)</span>
+<a id="__codelineno-0-266" name="__codelineno-0-266"></a>
+<a id="__codelineno-0-267" name="__codelineno-0-267"></a>    <span class="k">return</span> <span class="n">PipelineConfig</span><span class="p">(</span>
+<a id="__codelineno-0-268" name="__codelineno-0-268"></a>        <span class="n">experiment</span><span class="o">=</span><span class="n">experiment</span><span class="p">,</span>
+<a id="__codelineno-0-269" name="__codelineno-0-269"></a>        <span class="n">data</span><span class="o">=</span><span class="n">data</span><span class="p">,</span>
+<a id="__codelineno-0-270" name="__codelineno-0-270"></a>        <span class="n">pipeline</span><span class="o">=</span><span class="n">pipeline_steps</span><span class="p">,</span>
+<a id="__codelineno-0-271" name="__codelineno-0-271"></a>        <span class="n">reduction</span><span class="o">=</span><span class="n">reduction_steps</span><span class="p">,</span>
+<a id="__codelineno-0-272" name="__codelineno-0-272"></a>        <span class="n">output</span><span class="o">=</span><span class="n">output</span><span class="p">,</span>
+<a id="__codelineno-0-273" name="__codelineno-0-273"></a>    <span class="p">)</span>
 </code></pre></div></td></tr></table></div>
             </details>
     </div>
@@ -3935,7 +3945,7 @@ into each batch; per-shot arrays (shape[0] == total_shots) are sliced.</p>
       <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": [], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
     
     
-      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
       
     
   </body>
