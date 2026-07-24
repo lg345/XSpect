@@ -54,6 +54,52 @@ def get_run_shot_properties(run, **kwargs):
     run.get_run_shot_properties()
 
 
+@register_step("make_eventcode_mask")
+def make_eventcode_mask(run, **kwargs):
+    """Build a per-shot boolean mask from an EVR/timing event-code column.
+
+    The smalldata timing group stores a per-shot event-code table (shape
+    n_shots x n_codes, e.g. timing/eventcodes with 288 columns). This step
+    extracts one code's column as a boolean shot mask, so it can be used by
+    union_shots / filter_shots like any other mask.
+
+    Typical use: beam is delivered at 30 Hz inside a 120 Hz DAQ, tagged by
+    event code 198. Gate the analysis on code 198 to drop the 90 Hz of empty
+    frames (the smalldata `xray` flag does NOT distinguish these).
+
+    Parameters from YAML:
+        code:        event-code index (column) to extract, e.g. 198
+        eventcodes:  attribute holding the 2D code table (default "eventcodes")
+        new_key:     output mask attribute name (default: "ec<code>")
+    """
+    code = kwargs.get("code")
+    ec_key = kwargs.get("eventcodes", "eventcodes")
+    new_key = kwargs.get("new_key", None)
+    if code is None:
+        run.update_status("make_eventcode_mask: 'code' is required")
+        return
+    table = getattr(run, ec_key, None)
+    if table is None:
+        run.update_status(
+            f"make_eventcode_mask: '{ec_key}' not loaded (add it to data.keys)"
+        )
+        return
+    table = np.asarray(table)
+    if table.ndim != 2 or code >= table.shape[1]:
+        run.update_status(
+            f"make_eventcode_mask: '{ec_key}' shape {table.shape} cannot index code {code}"
+        )
+        return
+    mask = table[:, code].astype(bool)
+    if new_key is None:
+        new_key = f"ec{code}"
+    setattr(run, new_key, mask)
+    run.update_status(
+        f"make_eventcode_mask: {ec_key}[:, {code}] -> {new_key} "
+        f"({int(mask.sum())}/{mask.size} shots = {100 * mask.mean():.1f}%)"
+    )
+
+
 @register_step("filter_shots")
 def filter_shots(run, **kwargs):
     """Filter a shot mask by thresholding on another key.
